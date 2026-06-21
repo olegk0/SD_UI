@@ -16,9 +16,11 @@ type SampleParamsPanel struct {
 	Container            *fyne.Container
 	SchedulerSelect      *widget.Select
 	FlowShiftInput       *NumberStepper
+	FlowShiftDefCheck    *widget.Check
 	MethodSelect         *widget.Select
 	StepsInput           *NumberStepper
 	EtaInput             *NumberStepper
+	EtaDefCheck          *widget.Check
 	ShiftedTimestepInput *NumberStepper
 }
 
@@ -27,6 +29,14 @@ func createSampleContent() *SampleParamsPanel {
 	schedulerSelect.SetSelected("default")
 
 	flowShiftInput := NewNumberStepper(-10, 10, 0.01, 0, false)
+	flowShiftDefCheck := widget.NewCheck("Default", func(checked bool) {
+		if checked {
+			flowShiftInput.Container.Hide()
+		} else {
+			flowShiftInput.Container.Show()
+		}
+	})
+	flowShiftDefCheck.SetChecked(true)
 
 	methodSelect := widget.NewSelect([]string{"default"}, func(value string) {})
 	methodSelect.SetSelected("default")
@@ -34,16 +44,25 @@ func createSampleContent() *SampleParamsPanel {
 	stepsInput := NewNumberStepper(1, 100, 1, 2, true) // min=1, max=100, step=1, initial=1
 
 	etaInput := NewNumberStepper(-10, 10, 0.01, 1, false)
+	etaDefCheck := widget.NewCheck("Default", func(checked bool) {
+		if checked {
+			etaInput.Container.Hide()
+		} else {
+			etaInput.Container.Show()
+		}
+	})
+	etaDefCheck.SetChecked(true)
+
 	shiftedTimestepInput := NewNumberStepper(0, 100, 1, 0, true)
 
 	grid := container.NewGridWithColumns(2,
 		container.NewVBox(widget.NewLabel("Scheduler"), schedulerSelect),
-		container.NewVBox(widget.NewLabel("Flow Shift"), flowShiftInput.Container),
-		container.NewVBox(widget.NewLabel("Method"), methodSelect),
 		container.NewVBox(widget.NewLabel("Steps"), stepsInput.Container),
-		container.NewVBox(),
-		container.NewVBox(widget.NewLabel("Extras")),
-		container.NewVBox(widget.NewLabel("Eta"), etaInput.Container),
+		container.NewVBox(widget.NewLabel("Method"), methodSelect),
+		container.NewVBox(container.NewHBox(widget.NewLabel("Flow Shift"), flowShiftDefCheck), flowShiftInput.Container),
+		//	container.NewVBox(),
+		//	container.NewVBox(widget.NewLabel("Extras")),
+		container.NewVBox(container.NewHBox(widget.NewLabel("Eta"), etaDefCheck), etaInput.Container),
 		container.NewVBox(widget.NewLabel("Shifted Timestep"), shiftedTimestepInput.Container),
 	)
 
@@ -51,35 +70,76 @@ func createSampleContent() *SampleParamsPanel {
 		Container:            grid,
 		SchedulerSelect:      schedulerSelect,
 		FlowShiftInput:       flowShiftInput,
+		FlowShiftDefCheck:    flowShiftDefCheck,
 		MethodSelect:         methodSelect,
 		StepsInput:           stepsInput,
 		EtaInput:             etaInput,
+		EtaDefCheck:          etaDefCheck,
 		ShiftedTimestepInput: shiftedTimestepInput,
 	}
 }
 
 type GuidanceParamsPanel struct {
-	Container      *fyne.Container
-	CfgInput       *NumberStepper
-	DistilledInput *NumberStepper
+	Container          *fyne.Container
+	TxtCfgInput        *NumberStepper
+	DistilledInput     *NumberStepper
+	ImageCfgInput      *NumberStepper
+	ImageCfgDefCheck   *widget.Check
+	SlgLayersInput     *widget.Entry
+	SlgLayerStartInput *NumberStepper
+	SlgLayerEndInput   *NumberStepper
+	SlgScaleInput      *NumberStepper
 }
 
 func createGuidanceContent() *GuidanceParamsPanel {
-	cfgInput := NewNumberStepper(-10, 10, 0.1, 1, false)
-
+	txtCfgInput := NewNumberStepper(-10, 10, 0.1, 1, false)
 	distilledInput := NewNumberStepper(-10, 10, 0.1, 3.5, false)
 
+	imageCfgInput := NewNumberStepper(-10, 10, 0.1, 0, false)
+	imageCfgDefCheck := widget.NewCheck("Default", func(checked bool) {
+		if checked {
+			imageCfgInput.Container.Hide()
+		} else {
+			imageCfgInput.Container.Show()
+		}
+	})
+	imageCfgDefCheck.SetChecked(true)
+	slgLayersInput := widget.NewEntry()
+	slgLayersInput.SetText("7,8,9")
+	slgLayersContainer := container.NewGridWrap(fyne.NewSize(200, slgLayersInput.MinSize().Height), slgLayersInput)
+
+	slgLayerStartInput := NewNumberStepper(-10, 10, 0.01, 0.01, false)
+	slgLayerEndInput := NewNumberStepper(-10, 10, 0.01, 0.2, false)
+
+	slgScaleInput := NewNumberStepper(-10, 10, 0.01, 0, false)
+
 	grid := container.NewGridWithColumns(2,
-		container.NewVBox(widget.NewLabel("CFG Scale"), cfgInput.Container),
+		container.NewVBox(widget.NewLabel("CFG Scale"), txtCfgInput.Container),
 		container.NewVBox(widget.NewLabel("Distilled Guidance"), distilledInput.Container),
+
+		container.NewVBox(container.NewHBox(widget.NewLabel("Image CFG"), imageCfgDefCheck), imageCfgInput.Container),
+		container.NewVBox(widget.NewLabel("SLG Layers"), slgLayersContainer),
+
+		container.NewVBox(widget.NewLabel("SLG Layer Start"), slgLayerStartInput.Container),
+		container.NewVBox(widget.NewLabel("SLG Layer End"), slgLayerEndInput.Container),
+
+		container.NewVBox(widget.NewLabel("SLG Scale"), slgScaleInput.Container),
+		container.NewVBox(),
 	)
 
-	showExtras := widget.NewHyperlink("Show extras", nil)
+	//showExtras := widget.NewHyperlink("Show extras", nil)
 
 	return &GuidanceParamsPanel{
-		Container:      container.NewVBox(grid, container.NewHBox(showExtras)),
-		CfgInput:       cfgInput,
-		DistilledInput: distilledInput,
+		//	Container:      container.NewVBox(grid, container.NewHBox(showExtras)),
+		Container:          grid,
+		TxtCfgInput:        txtCfgInput,
+		DistilledInput:     distilledInput,
+		ImageCfgInput:      imageCfgInput,
+		ImageCfgDefCheck:   imageCfgDefCheck,
+		SlgLayersInput:     slgLayersInput,
+		SlgLayerStartInput: slgLayerStartInput,
+		SlgLayerEndInput:   slgLayerEndInput,
+		SlgScaleInput:      slgScaleInput,
 	}
 }
 

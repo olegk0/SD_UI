@@ -14,46 +14,50 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+/*
 // 1. Создаем структуру для нашего кастомного макета
-type stepperLayout struct {
-	entryWidth float32
-}
+
+	type stepperLayout struct {
+		entryWidth float32
+	}
 
 // Метод Layout определяет точное положение и размеры элементов внутри рамки
-func (l *stepperLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
-	if len(objects) < 3 {
-		return
+
+	func (l *stepperLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+		if len(objects) < 3 {
+			return
+		}
+		border := objects[0]
+		entryContainer := objects[1] // Теперь это контейнер, а не голый entry
+		btns := objects[2]
+
+		// Рамка занимает всю выделенную площадь
+		border.Resize(size)
+		border.Move(fyne.NewPos(0, 0))
+
+		// Кнопки прижимаются к правому краю, ширина 20
+		btnsWidth := float32(20)
+		btns.Resize(fyne.NewSize(btnsWidth, size.Height))
+		btns.Move(fyne.NewPos(size.Width-btnsWidth-2, 0))
+
+		// Контейнер текстового поля занимает всё оставшееся место слева
+		entryContainer.Resize(fyne.NewSize(size.Width-btnsWidth-6, size.Height))
+		entryContainer.Move(fyne.NewPos(2, 0))
 	}
-	border := objects[0]
-	entryContainer := objects[1] // Теперь это контейнер, а не голый entry
-	btns := objects[2]
-
-	// Рамка занимает всю выделенную площадь
-	border.Resize(size)
-	border.Move(fyne.NewPos(0, 0))
-
-	// Кнопки прижимаются к правому краю, ширина 20
-	btnsWidth := float32(20)
-	btns.Resize(fyne.NewSize(btnsWidth, size.Height))
-	btns.Move(fyne.NewPos(size.Width-btnsWidth-2, 0))
-
-	// Контейнер текстового поля занимает всё оставшееся место слева
-	entryContainer.Resize(fyne.NewSize(size.Width-btnsWidth-6, size.Height))
-	entryContainer.Move(fyne.NewPos(2, 0))
-}
 
 // Метод MinSize сообщает Fyne (и чекбоксу "On") честные минимальные габариты контрола
-func (l *stepperLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
-	totalWidth := l.entryWidth + 20 + 6
-	return fyne.NewSize(totalWidth, 38)
-}
 
+	func (l *stepperLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+		totalWidth := l.entryWidth + 20 + 6
+		return fyne.NewSize(totalWidth, 38)
+	}
+*/
 type NumberStepper struct {
 	Container fyne.CanvasObject
 	Min, Max  float64
 	Step      float64
 	IsInteger bool
-	OnChanged func(float64)
+	//OnChanged func(float64)
 
 	entry *widget.Entry
 	value float64
@@ -92,9 +96,9 @@ func (s *NumberStepper) SetValue(val float64) {
 	if s.value != val {
 		s.value = val
 		s.entry.SetText(s.formatValue(val))
-		if s.OnChanged != nil {
-			s.OnChanged(val)
-		}
+		//if s.OnChanged != nil {
+		//	s.OnChanged(val)
+		//}
 	}
 }
 
@@ -110,47 +114,53 @@ func NewNumberStepper(min, max, step, initial float64, isInteger bool) *NumberSt
 	stepper.value = stepper.roundToStep(initial)
 	stepper.entry.SetText(stepper.formatValue(stepper.value))
 
-	stepper.entry.OnChanged = func(str string) {
+	var onChanged func(string)
+
+	onChanged = func(str string) {
+		stepper.entry.OnChanged = nil // Временно отключаем обработчик, чтобы избежать рекурсии при SetText
 		val, err := strconv.ParseFloat(str, 64)
 		if err != nil {
-			return
+			//return
+			val = stepper.value // Если ввод не число, возвращаемся к последнему валидному значению
+			stepper.entry.SetText(stepper.formatValue(val))
 		}
-		val = stepper.roundToStep(val)
-		if val >= stepper.Min && val <= stepper.Max {
-			if stepper.value != val {
-				stepper.value = val
-				if stepper.OnChanged != nil {
-					stepper.OnChanged(val)
-				}
-			}
-		}
+		stepper.SetValue(val)
+
+		stepper.entry.OnChanged = onChanged // Восстанавливаем обработчик после обработки изменения
 	}
 
-	stepper.entry.Validator = func(str string) error {
-		val, err := strconv.ParseFloat(str, 64)
-		if err != nil {
-			return fmt.Errorf("must be a number")
-		}
-		if val < stepper.Min || val > stepper.Max {
-			return fmt.Errorf("must be between %g and %g", stepper.Min, stepper.Max)
-		}
-		if stepper.IsInteger && stepper.Step != 1 && stepper.Step > 0 {
-			if math.Mod(val, stepper.Step) != 0 {
-				return fmt.Errorf("must be a multiple of %g", stepper.Step)
+	stepper.entry.OnChanged = onChanged
+
+	/*
+		stepper.entry.Validator = func(str string) error {
+			val, err := strconv.ParseFloat(str, 64)
+			if err != nil {
+				return fmt.Errorf("must be a number")
 			}
+			if val < stepper.Min || val > stepper.Max {
+				return fmt.Errorf("must be between %g and %g", stepper.Min, stepper.Max)
+			}
+			if stepper.IsInteger && stepper.Step != 1 && stepper.Step > 0 {
+				if math.Mod(val, stepper.Step) != 0 {
+					return fmt.Errorf("must be a multiple of %g", stepper.Step)
+				}
+			}
+			return nil
 		}
-		return nil
-	}
+	*/
+	entryHeight := float32(38)
+	btnWidth := float32(20)
+	btnHeight := entryHeight/2 - 2
 
 	incBtn := widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() {
 		stepper.SetValue(stepper.value + stepper.Step)
 	})
-	incContainer := container.NewGridWrap(fyne.NewSize(20, 18), incBtn)
+	incContainer := container.NewGridWrap(fyne.NewSize(btnWidth, btnHeight), incBtn)
 
 	decBtn := widget.NewButtonWithIcon("", theme.MoveDownIcon(), func() {
 		stepper.SetValue(stepper.value - stepper.Step)
 	})
-	decContainer := container.NewGridWrap(fyne.NewSize(20, 18), decBtn)
+	decContainer := container.NewGridWrap(fyne.NewSize(btnWidth, btnHeight), decBtn)
 
 	buttonsContainer := container.New(
 		layout.NewVBoxLayout(),
@@ -159,6 +169,7 @@ func NewNumberStepper(min, max, step, initial float64, isInteger bool) *NumberSt
 	)
 
 	entryWidth := float32(200)
+
 	//if !isInteger {
 	//	entryWidth = 80
 	//}
@@ -166,25 +177,28 @@ func NewNumberStepper(min, max, step, initial float64, isInteger bool) *NumberSt
 	// ВАЖНОЕ ИСПРАВЛЕНИЕ: Оборачиваем stepper.entry в GridWrap.
 	// Это принудительно урежет минимальные требования самого текстового поля
 	// до нужных нам 65 или 80 пикселей, и оно перестанет раздувать весь макет.
-	entryContainer := container.NewGridWrap(fyne.NewSize(entryWidth, 38), stepper.entry)
+	entryContainer := container.NewGridWrap(fyne.NewSize(entryWidth, entryHeight), stepper.entry)
 
 	// Бордюр вокруг всего контрола
-	borderColor := theme.ForegroundColor()
+	borderColor := theme.Color(theme.ColorNameForeground)
 	border := canvas.NewRectangle(color.Transparent)
 	border.StrokeColor = borderColor
 	border.StrokeWidth = 1
 	border.CornerRadius = 3
 
 	// Инициализируем наш кастомный макет
-	myLayout := &stepperLayout{entryWidth: entryWidth}
+	//myLayout := &stepperLayout{entryWidth: entryWidth}
 
 	// ВНИМАНИЕ: Заменяем stepper.entry на подготовленный entryContainer
 	// Порядок для макета: 0 - рамка, 1 - контейнер с полем ввода, 2 - кнопки
-	content := container.New(myLayout, border, entryContainer, buttonsContainer)
+	//content := container.New(myLayout, border, entryContainer, buttonsContainer)
+	//content := container.New(myLayout, border, entryContainer, buttonsContainer)
 
 	// Передаем точные размеры наружу
-	totalSize := myLayout.MinSize(content.Objects)
-	stepper.Container = container.NewGridWrap(totalSize, content)
+	//totalSize := myLayout.MinSize(content.Objects)
+	//stepper.Container = container.NewGridWrap(totalSize, content)
+	content := container.NewStack(border, container.NewHBox(entryContainer, buttonsContainer))
+	stepper.Container = container.NewGridWrap(fyne.NewSize(btnWidth+entryWidth+6, entryHeight), content)
 
 	return stepper
 }

@@ -86,7 +86,7 @@ type SampleParams struct {
 
 type GuidanceConfig struct {
 	DistilledGuidance float64   `json:"distilled_guidance"`
-	ImgCfg            *float64  `json:"img_cfg"` // Также обрабатываем null
+	ImgCfg            float64   `json:"img_cfg"`
 	Slg               SlgConfig `json:"slg"`
 	TxtCfg            float64   `json:"txt_cfg"`
 }

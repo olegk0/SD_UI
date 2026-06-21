@@ -7,6 +7,8 @@ import (
 	"image"
 	"image/color"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -28,6 +30,50 @@ func formatTimestamp(ts *int64) string {
 	// 2. Форматируем по эталонному шаблону Go: "02.01.2006 15:04:05"
 	// (В Go вместо символов YYYY-MM-DD используется строго это эталонное время)
 	return t.Format("02.01.2006 15:04:05")
+}
+
+func stringToIntSlice(input string) []int {
+	// 1. Удаляем случайные пробелы по краям строки
+	cleaned := strings.TrimSpace(input)
+	if cleaned == "" {
+		return []int{}
+	}
+
+	// 2. Разбиваем строку по запятой
+	strParts := strings.Split(cleaned, ",")
+	intSlice := make([]int, 0, len(strParts))
+
+	// 3. Конвертируем каждую часть в число
+	for _, part := range strParts {
+		// Удаляем пробелы вокруг конкретного числа (например, если было "1, 2 , 3")
+		trimmedPart := strings.TrimSpace(part)
+
+		num, err := strconv.Atoi(trimmedPart)
+		if err != nil {
+			fmt.Printf("Error conversion '%s' to int: %w", trimmedPart, err)
+			return []int{}
+		}
+		intSlice = append(intSlice, num)
+	}
+
+	return intSlice
+}
+
+func intSliceToString(numbers []int) string {
+	if len(numbers) == 0 {
+		return ""
+	}
+
+	// 1. Создаем массив строк нужной длины
+	strParts := make([]string, len(numbers))
+
+	// 2. Превращаем каждое число в строку
+	for i, num := range numbers {
+		strParts[i] = strconv.Itoa(num)
+	}
+
+	// 3. Объединяем их через запятую
+	return strings.Join(strParts, ",")
 }
 
 // ==========================================
@@ -61,8 +107,8 @@ func main() {
 	negativeContainer := container.NewStack(negativeInput)
 	negativeContainer.Resize(fyne.NewSize(0, 60))
 
-	widthInput := NewNumberStepper(64, 1024, 32, 64, true)
-	heightInput := NewNumberStepper(64, 1024, 32, 64, true)
+	widthInput := NewNumberStepper(64, 1024, 32, 128, true)
+	heightInput := NewNumberStepper(64, 1024, 32, 128, true)
 
 	sizeRow := container.NewGridWithColumns(2,
 		container.NewVBox(widget.NewLabel("Width"), widthInput.Container),
@@ -155,14 +201,27 @@ func main() {
 			modelLabel.SetText(fmt.Sprintf("Model: %s (mode: %s)", caps.Model.Name, caps.CurrentMode))
 			sampleParams.SchedulerSelect.Options = caps.Schedulers
 			sampleParams.MethodSelect.Options = caps.Samplers
+			widthInput.SetValue(float64(caps.Defaults.Width))
+			heightInput.SetValue(float64(caps.Defaults.Height))
+			//-- Loras
 			loraPanel.UpdateAvailableLoras(caps.Loras)
+			//-- Defaults
+			conditioningParams.ControlStrengthInput.SetValue(caps.Defaults.ControlStrength)
+			conditioningParams.StrengthInput.SetValue(caps.Defaults.Strength)
+			GuidanceParams.DistilledInput.SetValue(caps.Defaults.SampleParams.Guidance.DistilledGuidance)
+			GuidanceParams.TxtCfgInput.SetValue(caps.Defaults.SampleParams.Guidance.TxtCfg)
+			GuidanceParams.SlgLayerEndInput.SetValue(caps.Defaults.SampleParams.Guidance.Slg.LayerEnd)
+			GuidanceParams.SlgLayerStartInput.SetValue(caps.Defaults.SampleParams.Guidance.Slg.LayerStart)
+			GuidanceParams.SlgScaleInput.SetValue(caps.Defaults.SampleParams.Guidance.Slg.Scale)
+			GuidanceParams.SlgLayersInput.SetText(intSliceToString(caps.Defaults.SampleParams.Guidance.Slg.Layers))
+			//-- Limits
 			batchInput.Max = float64(caps.Limits.MaxBatchCount)
 			widthInput.Max = float64(caps.Limits.MaxWidth)
 			widthInput.Min = float64(caps.Limits.MinWidth)
 			heightInput.Min = float64(caps.Limits.MinHeight)
 			heightInput.Max = float64(caps.Limits.MaxHeight)
 			//TODO max_queue_size
-
+			//TODO upscalers
 		}
 	})
 
@@ -217,13 +276,25 @@ func main() {
 			req.SampleParams.SampleMethod = sampleParams.MethodSelect.Selected
 			req.SampleParams.Scheduler = sampleParams.SchedulerSelect.Selected
 			req.SampleParams.SampleSteps = int(sampleParams.StepsInput.value)
-			//req.SampleParams.Eta = sampleParams.EtaInput.value
+			if sampleParams.EtaDefCheck.Checked == false {
+				req.SampleParams.Eta = &sampleParams.EtaInput.value
+			}
 			req.SampleParams.ShiftedTimestep = int(sampleParams.ShiftedTimestepInput.value)
 			//req.SampleParams.customSigmas
-			//req.SampleParams.FlowShift = sampleParams.FlowShiftInput.value
-			req.SampleParams.Guidance.TxtCfg = GuidanceParams.CfgInput.value
-			//req.SampleParams.Guidance.ImgCfg = req.SampleParams.Guidance.TxtCfg //TODO
+			if sampleParams.FlowShiftDefCheck.Checked == false {
+				req.SampleParams.FlowShift = &sampleParams.FlowShiftInput.value
+			}
+			req.SampleParams.Guidance.TxtCfg = GuidanceParams.TxtCfgInput.value
+			if GuidanceParams.ImageCfgDefCheck.Checked {
+				req.SampleParams.Guidance.ImgCfg = GuidanceParams.TxtCfgInput.value
+			} else {
+				req.SampleParams.Guidance.ImgCfg = GuidanceParams.ImageCfgInput.value
+			}
 			req.SampleParams.Guidance.DistilledGuidance = GuidanceParams.DistilledInput.value
+			req.SampleParams.Guidance.Slg.LayerEnd = GuidanceParams.SlgLayerEndInput.value
+			req.SampleParams.Guidance.Slg.LayerStart = GuidanceParams.SlgLayerStartInput.value
+			req.SampleParams.Guidance.Slg.Layers = stringToIntSlice(GuidanceParams.SlgLayersInput.Text)
+			req.SampleParams.Guidance.Slg.Scale = GuidanceParams.SlgScaleInput.value
 			//--HiRes
 			req.Hires.Enabled = false      //TODO
 			req.Hires.Upscaler = "default" //TODO

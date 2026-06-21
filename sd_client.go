@@ -148,7 +148,7 @@ func (c *SDClient) GetJobStatus(id string) (*JobResponse, error) {
 	if bodyBytes, err = io.ReadAll(resp.Body); err != nil {
 		return nil, fmt.Errorf("ошибка чтения тела ответа: %w", err)
 	}
-	fmt.Printf("GetJobStatus response body: %s\n", string(bodyBytes))
+	//fmt.Printf("GetJobStatus response body: %s\n", string(bodyBytes))
 
 	switch resp.StatusCode {
 	case http.StatusOK:
