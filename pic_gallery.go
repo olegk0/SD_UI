@@ -61,7 +61,7 @@ func (t *TappableImage) Tapped(_ *fyne.PointEvent) {
 	}
 }
 
-func openGallery(myApp fyne.App) {
+func openGallery(myApp fyne.App, setParams func(SDCPPParams)) {
 	galleryWin := myApp.NewWindow("Gallery")
 	galleryWin.Resize(fyne.NewSize(1920, 1080))
 
@@ -99,7 +99,7 @@ func openGallery(myApp fyne.App) {
 
 			// Нажатие на саму картинку теперь открывает окно просмотра
 			imgWidget := NewTappableImage(item.ImgPath, func() {
-				popUpImg = showFullImage(myApp, galleryWin, item.ImgPath, item.ExifInfo) // Передаем родительское окно для модальности
+				popUpImg = showFullImage(myApp, galleryWin, item.ImgPath, item.ExifInfo, setParams) // Передаем родительское окно для модальности
 			})
 
 			chk := widget.NewCheck("", func(b bool) {
@@ -137,7 +137,7 @@ func openGallery(myApp fyne.App) {
 }
 
 // Окно просмотра: с блоком метаданных EXIF
-func showFullImage(myApp fyne.App, parentWin fyne.Window, imgPath, exifInfo string) *widget.PopUp {
+func showFullImage(myApp fyne.App, parentWin fyne.Window, imgPath, exifInfo string, setParams func(SDCPPParams)) *widget.PopUp {
 	var popUp *widget.PopUp
 	img := canvas.NewImageFromFile(imgPath)
 	img.FillMode = canvas.ImageFillContain
@@ -180,16 +180,17 @@ func showFullImage(myApp fyne.App, parentWin fyne.Window, imgPath, exifInfo stri
 			fmt.Printf("Ошибка парсинга JSON: %v\n", err)
 			return
 		}
-
-		// 4. Проверяем результат работы: выводим нужные поля на экран
+		setParams(params)
+		/*// 4. Проверяем результат работы: выводим нужные поля на экран
 		fmt.Println("=== Успешно распарсено ===")
 		fmt.Printf("Промпт:       %s\n", params.Prompt.Positive)
 		fmt.Printf("Разрешение:   %dx%d\n", params.Width, params.Height)
 		fmt.Printf("Сид (Seed):   %d\n", params.Seed)
 		fmt.Printf("Метод/Шаги:   %s (%d шагов)\n", params.Sampling.Method, params.Sampling.Steps)
 		fmt.Printf("Используемая LLM: %s\n", params.Models.Llm)
+		*/
 	})
-	copyClipBoardBtn := widget.NewButton("Copy to Clipboard", func() {
+	copyClipBoardBtn := widget.NewButton("Params to clipboard", func() {
 		myApp.Clipboard().SetContent(exifInfo)
 	})
 

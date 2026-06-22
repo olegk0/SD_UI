@@ -104,6 +104,17 @@ func intSliceToString(numbers []int) string {
 	return strings.Join(strParts, ",")
 }
 
+func parseGuidance(guidance GuidanceConfig, guidanceParams *GuidanceParamsPanel) {
+	guidanceParams.DistilledInput.SetValue(guidance.DistilledGuidance)
+	guidanceParams.TxtCfgInput.SetValue(guidance.TxtCfg)
+	guidanceParams.ImageCfgInput.SetValue(guidance.ImgCfg)
+	// Slg
+	guidanceParams.SlgLayerEndInput.SetValue(guidance.Slg.LayerEnd)
+	guidanceParams.SlgLayerStartInput.SetValue(guidance.Slg.LayerStart)
+	guidanceParams.SlgScaleInput.SetValue(guidance.Slg.Scale)
+	guidanceParams.SlgLayersInput.SetText(intSliceToString(guidance.Slg.Layers))
+}
+
 // ==========================================
 // ОСНОВНОЙ НАБОР ИНТЕРФЕЙСА
 // ==========================================
@@ -111,7 +122,6 @@ func intSliceToString(numbers []int) string {
 func main() {
 	var JobID string
 	var CapsResp CapabilitiesResponse
-	currentConfig := loadConfig()
 	myApp := app.New()
 	myWindow := myApp.NewWindow("Stable Diffusion CPP GUI")
 	//myWindow.Resize(fyne.NewSize(1920, 1080))
@@ -148,7 +158,7 @@ func main() {
 	)
 
 	batchInput := NewNumberStepper(1, 100, 1, 1, true)
-	seedInput := NewNumberStepper(-1, 999999, 1, -1, true)
+	seedInput := NewNumberStepper(-1, 999999999999, 1, -1, true)
 
 	batchRow := container.NewGridWithColumns(2,
 		container.NewVBox(widget.NewLabel("Batch Count"), batchInput.Container),
@@ -159,6 +169,9 @@ func main() {
 	loraPanel := CreateLoraBlock()
 	conditioningParams := createConditioningContent()
 	vaeTilingParams := createVaeTilingContent()
+	cacheParams := createCacheContent()
+	hiResParams := createHiResContent()
+
 	accordion := widget.NewAccordion(
 		widget.NewAccordionItem("SAMPLE", sampleParams.Container),
 		widget.NewAccordionItem("GUIDANCE", GuidanceParams.Container),
@@ -166,7 +179,8 @@ func main() {
 		widget.NewAccordionItem("LORA", loraPanel.Container),
 		widget.NewAccordionItem("IMAGE INPUTS", createImageInputsContent()),
 		widget.NewAccordionItem("VAE TILING", vaeTilingParams.Container),
-		widget.NewAccordionItem("CACHE", createCacheContent()),
+		widget.NewAccordionItem("CACHE", cacheParams.Container),
+		widget.NewAccordionItem("HIRES", hiResParams.Container),
 	)
 
 	leftColumn := container.NewVBox(
@@ -210,6 +224,13 @@ func main() {
 		portEntry,
 	)
 
+	cancelBtn := widget.NewButton("Cancel", func() {
+		if JobID != "" {
+			sdAPI.CancelJob(JobID)
+		}
+		JobID = ""
+	})
+
 	testBtn := widget.NewButton("Connect", func() {
 		modelLabel.SetText("Model:")
 		if ipEntry.Text == "" {
@@ -240,20 +261,32 @@ func main() {
 			//-- Defaults
 			conditioningParams.ControlStrengthInput.SetValue(caps.Defaults.ControlStrength)
 			conditioningParams.StrengthInput.SetValue(caps.Defaults.Strength)
-			GuidanceParams.DistilledInput.SetValue(caps.Defaults.SampleParams.Guidance.DistilledGuidance)
-			GuidanceParams.TxtCfgInput.SetValue(caps.Defaults.SampleParams.Guidance.TxtCfg)
-			GuidanceParams.SlgLayerEndInput.SetValue(caps.Defaults.SampleParams.Guidance.Slg.LayerEnd)
-			GuidanceParams.SlgLayerStartInput.SetValue(caps.Defaults.SampleParams.Guidance.Slg.LayerStart)
-			GuidanceParams.SlgScaleInput.SetValue(caps.Defaults.SampleParams.Guidance.Slg.Scale)
-			GuidanceParams.SlgLayersInput.SetText(intSliceToString(caps.Defaults.SampleParams.Guidance.Slg.Layers))
+			sampleParams.ShiftedTimestepInput.SetValue(float64(caps.Defaults.SampleParams.ShiftedTimestep))
+			parseGuidance(caps.Defaults.SampleParams.Guidance, GuidanceParams)
+			//-- Features
+			if caps.Features.CancelGenerating {
+				cancelBtn.Enable()
+			} else {
+				cancelBtn.Disable()
+			}
 			//-- Limits
 			batchInput.Max = float64(caps.Limits.MaxBatchCount)
 			widthInput.Max = float64(caps.Limits.MaxWidth)
 			widthInput.Min = float64(caps.Limits.MinWidth)
 			heightInput.Min = float64(caps.Limits.MinHeight)
 			heightInput.Max = float64(caps.Limits.MaxHeight)
+			//-- Upscalers
+			ups_names := make([]string, len(caps.Upscalers)+1)
+			ups_names[0] = "disabled"
+			for i, upscaler := range caps.Upscalers {
+				ups_names[i+1] = upscaler.Name
+			}
+			hiResParams.UpscalerSelect.Options = ups_names
+			hiResParams.UpscalerSelect.SetSelected("disabled")
+
+			//--
 			//TODO max_queue_size
-			//TODO upscalers
+
 		}
 	})
 
@@ -290,8 +323,7 @@ func main() {
 	var generateBtn *widget.Button
 	generateBtn = widget.NewButton("Generate Image", func() {
 		if sdAPI.isConnected == true {
-			generateBtn.Disable()      // Блокируем кнопку, чтобы предотвратить повторные нажатия
-			defer generateBtn.Enable() // Разблокируем кнопку после завершения функции
+			generateBtn.Disable() // Блокируем кнопку, чтобы предотвратить повторные нажатия
 			infoLabel.SetText("Running stable-diffusion.cpp...")
 			var req ImgGenRequest
 			req.Prompt = promptInput.Text
@@ -328,15 +360,20 @@ func main() {
 			req.SampleParams.Guidance.Slg.Layers = stringToIntSlice(GuidanceParams.SlgLayersInput.Text)
 			req.SampleParams.Guidance.Slg.Scale = GuidanceParams.SlgScaleInput.value
 			//--HiRes
-			req.Hires.Enabled = false      //TODO
-			req.Hires.Upscaler = "default" //TODO
-			req.Hires.Scale = 2.0
-			req.Hires.TargetHeight = 0
-			req.Hires.TargetWidth = 0
-			req.Hires.Steps = 0
-			req.Hires.DenoisingStrength = 0.7
-			req.Hires.CustomSigmas = []float64{}
-			req.Hires.UpscaleTileSize = 128
+			if hiResParams.UpscalerSelect.Selected == "disabled" || hiResParams.UpscalerSelect.Selected == "None" {
+				req.Hires.Enabled = false
+			} else {
+				req.Hires.Enabled = true
+				req.Hires.Upscaler = hiResParams.UpscalerSelect.Selected
+				req.Hires.Scale = hiResParams.ScaleInput.value
+				req.Hires.TargetHeight = int(hiResParams.TargetHeightInput.value)
+				req.Hires.TargetWidth = int(hiResParams.TargetWidthInput.value)
+				req.Hires.Steps = int(hiResParams.StepsInput.value)
+				req.Hires.DenoisingStrength = hiResParams.DenoisingStrengthInput.value
+				req.Hires.CustomSigmas = []float64{}
+				req.Hires.UpscaleTileSize = int(hiResParams.UpscaleTileSizeInput.value)
+			}
+
 			//--VAE TILING
 			req.VaeTilingParams.Enabled = vaeTilingParams.EnabledCheck.Checked
 			req.VaeTilingParams.TileSizeX = int(vaeTilingParams.TileSizeX.value)
@@ -371,6 +408,7 @@ func main() {
 				beginTimestamp := time.Now().Unix()
 				fmt.Printf("Response: %+v\n", resp) //infoLabel.SetText(fmt.Sprintf("Response: %v", resp))
 				go func() {
+					defer generateBtn.Enable()
 					for tmo := 0; tmo < 60*5; tmo++ { //sec
 						//TODO jobQueueLabel
 						var job_stat *JobResponse
@@ -434,17 +472,37 @@ func main() {
 	})
 	generateBtn.Importance = widget.HighImportance
 
-	downloadBtn := widget.NewButton("Download", func() {})
-	cancelBtn := widget.NewButton("Cancel", func() {
-		if JobID != "" {
-			sdAPI.CancelJob(JobID)
-		}
-		JobID = ""
-	})
-	actionRow := container.NewGridWithColumns(2, downloadBtn, cancelBtn)
+	actionRow := container.NewGridWithColumns(2, generateBtn, cancelBtn)
 
 	galleryBtn := widget.NewButton("Gallery", func() {
-		openGallery(myApp)
+		openGallery(myApp, func(params SDCPPParams) {
+			sampleParams.SchedulerSelect.SetSelected(params.Sampling.Scheduler)
+			sampleParams.MethodSelect.SetSelected(params.Sampling.Method)
+			//
+			widthInput.SetValue(float64(params.Width))
+			heightInput.SetValue(float64(params.Height))
+			//-- Loras
+			//TODO loraPanel
+			//--
+			conditioningParams.ControlStrengthInput.SetValue(params.ControlStrength)
+			conditioningParams.StrengthInput.SetValue(params.Strength)
+			//-- Guidance
+			parseGuidance(params.Sampling.Guidance, GuidanceParams)
+			//--
+			seedInput.SetValue(float64(params.Seed))
+			promptInput.Text = params.Prompt.Positive
+			negativeInput.Text = params.Prompt.Negative
+			//--
+			//TODO eta
+			//TODO extra_sample_args
+			//TODO flow_shift
+			sampleParams.ShiftedTimestepInput.SetValue(float64(params.Sampling.ShiftedTimestep))
+			sampleParams.StepsInput.SetValue(float64(params.Sampling.Steps))
+			//--
+			//-- Upscalers
+			// TODO hiResParams.UpscalerSelect.SetSelected("disabled")
+			leftScroll.Refresh()
+		})
 	})
 
 	rightColumn := container.NewVBox(
@@ -456,7 +514,6 @@ func main() {
 		statusCard,
 		elapsedLabel,
 		infoLabel,
-		generateBtn,
 		actionRow,
 	)
 
@@ -464,7 +521,12 @@ func main() {
 	splitLayout := container.NewHSplit(leftScroll, rightColumn)
 	splitLayout.Offset = 0.55
 
+	currentConfig := loadConfig()
+	ipEntry.SetText(currentConfig.IP)
+	portEntry.SetText(currentConfig.Port)
+
 	myWindow.SetOnClosed(func() { //
+		fmt.Println("SetOnClosed")
 		currentConfig.IP = ipEntry.Text
 		currentConfig.Port = portEntry.Text
 
@@ -474,7 +536,11 @@ func main() {
 			if err != nil {
 				fmt.Println("Error save config:", err)
 			}
+		} else {
+			fmt.Println("Error make config:", err)
 		}
+
+		myApp.Quit()
 	})
 
 	// ---- ФИНАЛЬНАЯ КОМПОНОВКА ----

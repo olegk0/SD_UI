@@ -180,6 +180,7 @@ func (c *SDClient) CancelJob(id string) (*GenResponse, error) {
 	}
 
 	url := fmt.Sprintf("%s/sdcpp/v1/jobs/%s/cancel", c.baseURL, strings.TrimSpace(id))
+	//fmt.Printf("cancel url: %+v\n", url)
 	resp, err := c.httpClient.Post(url, "application/json", strings.NewReader(""))
 	if err != nil {
 		return nil, err

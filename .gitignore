@@ -17,6 +17,7 @@ sd_ui
 coverage.*
 *.coverprofile
 profile.cov
+config.json
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
@@ -31,4 +32,4 @@ go.work.sum
 
 # Editor/IDE
 # .idea/
-# .vscode/
+.vscode/

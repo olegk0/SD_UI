@@ -141,6 +141,7 @@ type CapabilitiesResponse struct {
 
 // ====================================== Запросы ===============================
 type LoraParams struct {
+	Name        string  `json:"name"`
 	Path        string  `json:"path"`
 	Multiplier  float64 `json:"multiplier"`
 	IsHighNoise bool    `json:"is_high_noise"`
@@ -250,26 +251,55 @@ type JobResponse struct {
 	Error         *JobError  `json:"error"`  // *JobError — будет nil при успешном выполнении
 }
 
-// -----------------------------------------------------------------------------------
+// -------------------------Img EXIF block----------------------------------------------------------
+// Информация о генераторе
+type GeneratorInfo struct {
+	Commit  string `json:"commit"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+// Используемые модели
+type ModelsInfo struct {
+	DiffusionModel string `json:"diffusion_model"`
+	Llm            string `json:"llm"`
+	Vae            string `json:"vae"`
+}
+
+// Промпты
+type PromptInfo struct {
+	Negative string `json:"negative"`
+	Positive string `json:"positive"`
+}
+
+// Параметры сэмплинга (шагов)
+type SamplingInfo struct {
+	CustomSigmas    []float64      `json:"custom_sigmas"` // Использован float64 для гибкости sigmas
+	Eta             *float64       `json:"eta"`           // Указатель, так как в JSON может прийти null
+	ExtraSampleArgs string         `json:"extra_sample_args"`
+	FlowShift       *float64       `json:"flow_shift"` // Указатель, так как в JSON может прийти null
+	Guidance        GuidanceConfig `json:"guidance"`
+	ShiftedTimestep int            `json:"shifted_timestep"`
+	Steps           int            `json:"steps"`
+	Method          string         `json:"method"`
+	Scheduler       string         `json:"scheduler"`
+}
+
 type SDCPPParams struct {
-	AutoResizeRefImage bool    `json:"auto_resize_ref_image"`
-	ClipSkip           int     `json:"clip_skip"`
-	ControlStrength    float64 `json:"control_strength"`
-	Height             int     `json:"height"`
-	Width              int     `json:"width"`
-	Mode               string  `json:"mode"`
-	Seed               int64   `json:"seed"`
-	Prompt             struct {
-		Positive string `json:"positive"`
-		Negative string `json:"negative"`
-	} `json:"prompt"`
-	Models struct {
-		DiffusionModel string `json:"diffusion_model"`
-		Llm            string `json:"llm"`
-		Vae            string `json:"vae"`
-	} `json:"models"`
-	Sampling struct {
-		Method string `json:"method"`
-		Steps  int    `json:"steps"`
-	} `json:"sampling"`
+	AutoResizeRefImage bool          `json:"auto_resize_ref_image"`
+	ClipSkip           int           `json:"clip_skip"`
+	ControlStrength    float64       `json:"control_strength"`
+	Generator          GeneratorInfo `json:"generator"`
+	Height             int           `json:"height"`
+	IncreaseRefIndex   bool          `json:"increase_ref_index"`
+	Loras              []LoraParams  `json:"loras"`
+	Mode               string        `json:"mode"`
+	Models             ModelsInfo    `json:"models"`
+	Prompt             PromptInfo    `json:"prompt"`
+	Rng                string        `json:"rng"`
+	Sampling           SamplingInfo  `json:"sampling"`
+	Schema             string        `json:"schema"`
+	Seed               int64         `json:"seed"` // Использован int64 для больших значений сидов
+	Strength           float64       `json:"strength"`
+	Width              int           `json:"width"`
 }

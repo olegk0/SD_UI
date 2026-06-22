@@ -280,8 +280,25 @@ func createVaeTilingContent() *VaeTilingParamsPanel {
 	}
 }
 
-func createCacheContent() fyne.CanvasObject {
-	modeSelect := widget.NewSelect([]string{"disabled", "enabled", "aggressive"}, func(value string) {})
+type cacheParamsPanel struct {
+	Container    *fyne.Container
+	ModeSelect   *widget.Select
+	CacheOption  *widget.Entry
+	ScmMask      *widget.Entry
+	DynamicCheck *widget.Check
+}
+
+func createCacheContent() *cacheParamsPanel {
+	options := []string{
+		"disabled",
+		"easycache",
+		"ucache",
+		"dbcache",
+		"taylorseer",
+		"cache-dit",
+		"spectrum",
+	}
+	modeSelect := widget.NewSelect(options, func(value string) {})
 	modeSelect.SetSelected("disabled")
 
 	cacheOption := widget.NewEntry()
@@ -293,10 +310,68 @@ func createCacheContent() fyne.CanvasObject {
 	dynamicCheck := widget.NewCheck("Dynamic SCM Policy", func(checked bool) {})
 	dynamicCheck.SetChecked(true)
 
-	return container.NewVBox(
+	result := container.NewVBox(
 		container.NewVBox(widget.NewLabel("Mode"), modeSelect),
 		container.NewVBox(widget.NewLabel("Cache Option"), cacheOption),
 		container.NewVBox(widget.NewLabel("SCM Mask"), scmMask),
 		dynamicCheck,
 	)
+	return &cacheParamsPanel{
+		Container:    result,
+		ModeSelect:   modeSelect,
+		CacheOption:  cacheOption,
+		ScmMask:      scmMask,
+		DynamicCheck: dynamicCheck,
+	}
+}
+
+type hiresParamsPanel struct {
+	Container              *fyne.Container
+	UpscalerSelect         *widget.Select
+	ScaleInput             *NumberStepper
+	TargetWidthInput       *NumberStepper
+	TargetHeightInput      *NumberStepper
+	StepsInput             *NumberStepper
+	DenoisingStrengthInput *NumberStepper
+	UpscaleTileSizeInput   *NumberStepper
+}
+
+func createHiResContent() *hiresParamsPanel {
+	upscalerSelect := widget.NewSelect([]string{"disabled"}, func(value string) {})
+	upscalerSelect.SetSelected("disabled")
+	/*
+	   "scale": 2.0,		number
+	   "target_width": 0,		integer
+	   "target_height": 0,		integer
+	   "steps": 0,				integer
+	   "denoising_strength": 0.7,	number
+	   "custom_sigmas": [],
+	   "upscale_tile_size": 128	integer
+	*/
+	scaleInput := NewNumberStepper(-100, 100, 0.1, 2.0, false)
+	targetWidthInput := NewNumberStepper(0, 10000, 1, 0, true)
+	targetHeightInput := NewNumberStepper(0, 10000, 1, 0, true)
+	stepsInput := NewNumberStepper(0, 10000, 1, 0, true)
+	denoisingStrengthInput := NewNumberStepper(0, 10, 0.01, 0.7, false)
+	upscaleTileSizeInput := NewNumberStepper(0, 10000, 1, 128, true)
+
+	grid := container.NewGridWithColumns(2,
+		container.NewVBox(widget.NewLabel("Upscaler"), upscalerSelect),
+		container.NewVBox(widget.NewLabel("Scale"), scaleInput.Container),
+		container.NewVBox(widget.NewLabel("Target Width"), targetWidthInput.Container),
+		container.NewVBox(widget.NewLabel("Target Height"), targetHeightInput.Container),
+		container.NewVBox(widget.NewLabel("Steps"), stepsInput.Container),
+		container.NewVBox(widget.NewLabel("Denoising Strength"), denoisingStrengthInput.Container),
+		container.NewVBox(widget.NewLabel("Upscale Tile Size"), upscaleTileSizeInput.Container),
+	)
+	return &hiresParamsPanel{
+		Container:              grid,
+		UpscalerSelect:         upscalerSelect,
+		ScaleInput:             scaleInput,
+		TargetWidthInput:       targetWidthInput,
+		TargetHeightInput:      targetHeightInput,
+		StepsInput:             stepsInput,
+		DenoisingStrengthInput: denoisingStrengthInput,
+		UpscaleTileSizeInput:   upscaleTileSizeInput,
+	}
 }
