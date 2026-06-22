@@ -231,38 +231,53 @@ func createImageInputsContent() fyne.CanvasObject {
 	)
 }
 
-func createVaeTilingContent() fyne.CanvasObject {
+type VaeTilingParamsPanel struct {
+	Container     *fyne.Container
+	EnabledCheck  *widget.Check
+	TileSizeX     *NumberStepper
+	TileSizeY     *NumberStepper
+	TargetOverlap *NumberStepper
+	RelativeSizeX *NumberStepper
+	RelativeSizeY *NumberStepper
+}
+
+func createVaeTilingContent() *VaeTilingParamsPanel {
 	enabledCheck := widget.NewCheck("Enabled", func(checked bool) {})
 
-	tileSizeX := widget.NewEntry()
-	tileSizeX.SetText("0")
-	tileSizeY := widget.NewEntry()
-	tileSizeY.SetText("0")
+	tileSizeX := NewNumberStepper(0, 1024, 1, 0, true)
+	tileSizeY := NewNumberStepper(0, 1024, 1, 0, true)
 
-	targetOverlap := widget.NewEntry()
-	targetOverlap.SetText("0.5")
+	targetOverlap := NewNumberStepper(0, 1024, 0.01, 0.5, false)
 
-	relativeSizeX := widget.NewEntry()
-	relativeSizeX.SetText("0")
-	relativeSizeY := widget.NewEntry()
-	relativeSizeY.SetText("0")
+	relativeSizeX := NewNumberStepper(0, 1024, 0.01, 0, false)
+	relativeSizeY := NewNumberStepper(0, 1024, 0.01, 0, false)
 
 	sizeGrid := container.NewGridWithColumns(2,
-		container.NewVBox(widget.NewLabel("Tile Size X"), tileSizeX),
-		container.NewVBox(widget.NewLabel("Tile Size Y"), tileSizeY),
+		container.NewVBox(widget.NewLabel("Tile Size X"), tileSizeX.Container),
+		container.NewVBox(widget.NewLabel("Tile Size Y"), tileSizeY.Container),
 	)
 
 	relativeGrid := container.NewGridWithColumns(2,
-		container.NewVBox(widget.NewLabel("Relative Size X"), relativeSizeX),
-		container.NewVBox(widget.NewLabel("Relative Size Y"), relativeSizeY),
+		container.NewVBox(widget.NewLabel("Relative Size X"), relativeSizeX.Container),
+		container.NewVBox(widget.NewLabel("Relative Size Y"), relativeSizeY.Container),
 	)
 
-	return container.NewVBox(
+	result := container.NewGridWithColumns(1,
 		enabledCheck,
 		sizeGrid,
-		container.NewVBox(widget.NewLabel("Target Overlap"), targetOverlap),
+		container.NewVBox(widget.NewLabel("Target Overlap"), targetOverlap.Container),
 		relativeGrid,
 	)
+
+	return &VaeTilingParamsPanel{
+		Container:     result,
+		EnabledCheck:  enabledCheck,
+		TileSizeX:     tileSizeX,
+		TileSizeY:     tileSizeY,
+		TargetOverlap: targetOverlap,
+		RelativeSizeX: relativeSizeX,
+		RelativeSizeY: relativeSizeY,
+	}
 }
 
 func createCacheContent() fyne.CanvasObject {

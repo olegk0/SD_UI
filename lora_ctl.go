@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
@@ -17,10 +15,10 @@ type LoraBlock struct {
 }
 
 type LoraRow struct {
-	MainBox    *fyne.Container // Контейнер этой конкретной строки
-	SelectCtrl *widget.Select  // Выпадающий список
-	Multiplier *NumberStepper  // Поле ввода веса (Multiplier)
-	Enabled    *widget.Check   // Чекбокс Enabled
+	MainBox     *fyne.Container // Контейнер этой конкретной строки
+	SelectCtrl  *widget.Select  // Выпадающий список
+	Multiplier  *NumberStepper  // Поле ввода веса (Multiplier)
+	IsHighNoise *widget.Check   // Чекбокс IsHighNoise
 }
 
 func CreateLoraBlock() *LoraBlock {
@@ -42,12 +40,25 @@ func CreateLoraBlock() *LoraBlock {
 	//header := widget.NewLabelWithStyle("LORA", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 	// Шапка таблицы для визуального соответствия вашему макету
-	tableHeader := container.NewGridWithColumns(4,
+	/*
+		tableHeader := container.NewGridWithColumns(4,
+			widget.NewLabel("LORA"),
+			widget.NewLabel("MULTIPLIER"),
+			widget.NewLabel("IsHighNoise"),
+			widget.NewLabel(""),
+		)
+	*/
+	leftHeader := container.NewGridWithColumns(2,
 		widget.NewLabel("LORA"),
 		widget.NewLabel("MULTIPLIER"),
-		widget.NewLabel("Enabled"),
+	)
+
+	rightHeader := container.NewHBox(
+		widget.NewLabel("IsHighNoise"),
 		widget.NewLabel(""),
 	)
+
+	tableHeader := container.NewBorder(nil, nil, nil, rightHeader, leftHeader)
 
 	block.Container = container.NewVBox(
 		//header,
@@ -83,21 +94,22 @@ func (b *LoraBlock) AddRow() {
 	// 1. Формируем список строк для widget.NewSelect
 	var options []string
 	for _, lora := range b.availableLoras {
-		options = append(options, fmt.Sprintf("%s (%s)", lora.Name, lora.Path))
+		//options = append(options, fmt.Sprintf("%s (%s)", lora.Name, lora.Path))
+		options = append(options, lora.Path)
 	}
 
 	// 2. Создаем контроллы для новой строки
 	loraSelect := widget.NewSelect(options, func(value string) {
-		fmt.Println("Выбран LoRA:", value)
+		//fmt.Println("Выбран LoRA:", value)
 	})
 	loraSelect.SetSelected(options[0]) // По умолчанию выбираем первый
 
 	multiplierInput := NewNumberStepper(1, 100, 0.1, 1, false) // Дефолтный множитель 1
 
-	enableCheck := widget.NewCheck("On", func(checked bool) {
+	isHighNoiseCheck := widget.NewCheck("", func(checked bool) {
 		// Логика чекбокса
 	})
-	enableCheck.SetChecked(true) // По умолчанию включен
+	//isHighNoiseCheck.SetChecked(false) // По умолчанию включен
 
 	// Объявляем переменную строки заранее, чтобы кнопка Remove могла сослаться на неё
 	var row *LoraRow
@@ -110,22 +122,30 @@ func (b *LoraBlock) AddRow() {
 	/*	rowBox := container.NewGridWithColumns(4,
 			loraSelect,
 			multiplierInput.Container,
-			enableCheck,
+			isHighNoiseCheck,
 			removeBtn,
 		)
 	*/
-	rowBox := container.NewHBox(
+
+	leftBox := container.NewGridWithColumns(2,
 		loraSelect,
 		multiplierInput.Container,
-		enableCheck,
-		removeBtn,
 	)
 
+	rightBox := container.NewHBox(
+		container.NewVBox(),
+		isHighNoiseCheck,
+		removeBtn,
+		container.NewVBox(),
+	)
+
+	rowBox := container.NewBorder(nil, nil, nil, rightBox, leftBox)
+
 	row = &LoraRow{
-		MainBox:    rowBox,
-		SelectCtrl: loraSelect,
-		Multiplier: multiplierInput,
-		Enabled:    enableCheck,
+		MainBox:     rowBox,
+		SelectCtrl:  loraSelect,
+		Multiplier:  multiplierInput,
+		IsHighNoise: isHighNoiseCheck,
 	}
 
 	// 3. Регистрируем строку в менеджере и добавляем на экран
@@ -149,17 +169,14 @@ func (b *LoraBlock) RemoveRow(rowToRemove *LoraRow) {
 	b.rowsContainer.Refresh()
 }
 
-func (b *LoraBlock) GetCurrentConfig() []map[string]any {
-	var result []map[string]any
+func (b *LoraBlock) GetCurrentConfig() []LoraParams {
+	result := []LoraParams{}
 
 	for _, row := range b.rows {
-		// row.SelectCtrl.Selected вернет строку вида "Name (Path)"
-		// При необходимости вы можете вытащить оттуда чистый Name или индекс
-
-		result = append(result, map[string]any{
-			"name":       row.SelectCtrl.Selected,
-			"multiplier": row.Multiplier.Value(),
-			"enabled":    row.Enabled.Checked,
+		result = append(result, LoraParams{
+			Path:        row.SelectCtrl.Selected,
+			Multiplier:  row.Multiplier.Value(),
+			IsHighNoise: row.IsHighNoise.Checked,
 		})
 	}
 

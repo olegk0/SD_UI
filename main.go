@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -18,6 +19,33 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
+
+const configFileName = "config.json"
+
+type AppConfig struct {
+	IP   string `json:"ip"`
+	Port string `json:"port"`
+}
+
+func loadConfig() AppConfig {
+
+	jsonData, err := os.ReadFile(configFileName)
+	if err != nil {
+		fmt.Println("Error read config:", err)
+	} else {
+		var config AppConfig
+		err = json.Unmarshal(jsonData, &config)
+		if err != nil {
+			fmt.Println("Error parse config:", err)
+		} else {
+			return config
+		}
+	}
+	return AppConfig{
+		IP:   "127.0.0.1",
+		Port: "1234",
+	}
+}
 
 func formatTimestamp(ts *int64) string {
 	if ts == nil {
@@ -83,9 +111,11 @@ func intSliceToString(numbers []int) string {
 func main() {
 	var JobID string
 	var CapsResp CapabilitiesResponse
-	myApp := app.NewWithID("com.example.stable-diffusion")
+	currentConfig := loadConfig()
+	myApp := app.New()
 	myWindow := myApp.NewWindow("Stable Diffusion CPP GUI")
-	myWindow.Resize(fyne.NewSize(1920, 1080))
+	//myWindow.Resize(fyne.NewSize(1920, 1080))
+	myWindow.Resize(fyne.NewSize(1100, 1000))
 	myWindow.CenterOnScreen()
 
 	sdAPI := NewSDClient(4 * time.Second)
@@ -96,16 +126,18 @@ func main() {
 	promptInput.SetText("big home")
 	promptInput.SetPlaceHolder("Enter your prompt here...")
 	promptInput.Wrapping = fyne.TextWrapWord
+	promptInput.SetMinRowsVisible(10)
 
 	negativeInput := widget.NewMultiLineEntry()
 	negativeInput.SetPlaceHolder("What should be excluded?")
 	negativeInput.Wrapping = fyne.TextWrapWord
+	negativeInput.SetMinRowsVisible(5)
 
-	promptContainer := container.NewStack(promptInput)
-	promptContainer.Resize(fyne.NewSize(0, 100))
+	//promptContainer := container.NewStack(promptInput)
+	//promptContainer.Resize(fyne.NewSize(0, 500))
 
-	negativeContainer := container.NewStack(negativeInput)
-	negativeContainer.Resize(fyne.NewSize(0, 60))
+	//negativeContainer := container.NewStack(negativeInput)
+	//negativeContainer.Resize(fyne.NewSize(0, 100))
 
 	widthInput := NewNumberStepper(64, 1024, 32, 128, true)
 	heightInput := NewNumberStepper(64, 1024, 32, 128, true)
@@ -126,22 +158,23 @@ func main() {
 	GuidanceParams := createGuidanceContent()
 	loraPanel := CreateLoraBlock()
 	conditioningParams := createConditioningContent()
+	vaeTilingParams := createVaeTilingContent()
 	accordion := widget.NewAccordion(
 		widget.NewAccordionItem("SAMPLE", sampleParams.Container),
 		widget.NewAccordionItem("GUIDANCE", GuidanceParams.Container),
 		widget.NewAccordionItem("CONDITIONING", conditioningParams.Container),
 		widget.NewAccordionItem("LORA", loraPanel.Container),
 		widget.NewAccordionItem("IMAGE INPUTS", createImageInputsContent()),
-		widget.NewAccordionItem("VAE TILING", createVaeTilingContent()),
+		widget.NewAccordionItem("VAE TILING", vaeTilingParams.Container),
 		widget.NewAccordionItem("CACHE", createCacheContent()),
 	)
 
 	leftColumn := container.NewVBox(
 		widget.NewLabel("INPUT"),
 		widget.NewLabel("Prompt"),
-		promptContainer,
+		promptInput,
 		widget.NewLabel("Negative Prompt"),
-		negativeContainer,
+		negativeInput,
 		sizeRow,
 		batchRow,
 		widget.NewSeparator(),
@@ -163,7 +196,6 @@ func main() {
 	// Блок параметров соединения
 	ipEntry := widget.NewEntry()
 	ipEntry.SetPlaceHolder("127.0.0.1")
-	//ipEntry.SetText("192.168.0.68")
 	ipEntry.SetText("127.0.0.1")
 	ipContainer := container.New(
 		layout.NewGridWrapLayout(fyne.NewSize(200, ipEntry.MinSize().Height)),
@@ -171,7 +203,7 @@ func main() {
 	)
 
 	portEntry := widget.NewEntry()
-	portEntry.SetPlaceHolder("8080")
+	portEntry.SetPlaceHolder("1234")
 	portEntry.SetText("1234")
 	portContainer := container.New(
 		layout.NewGridWrapLayout(fyne.NewSize(80, portEntry.MinSize().Height)),
@@ -306,24 +338,26 @@ func main() {
 			req.Hires.CustomSigmas = []float64{}
 			req.Hires.UpscaleTileSize = 128
 			//--VAE TILING
-			req.VaeTilingParams.Enabled = false //TODO
-			req.VaeTilingParams.TileSizeX = 0
-			req.VaeTilingParams.TileSizeY = 0
+			req.VaeTilingParams.Enabled = vaeTilingParams.EnabledCheck.Checked
+			req.VaeTilingParams.TileSizeX = int(vaeTilingParams.TileSizeX.value)
+			req.VaeTilingParams.TileSizeY = int(vaeTilingParams.TileSizeY.value)
 			req.VaeTilingParams.ExtraTilingArgs = ""
-			req.VaeTilingParams.RelSizeX = 0.0
-			req.VaeTilingParams.RelSizeY = 0.0
-			req.VaeTilingParams.TargetOverlap = 0.5
+			req.VaeTilingParams.RelSizeX = vaeTilingParams.RelativeSizeX.value
+			req.VaeTilingParams.RelSizeY = vaeTilingParams.RelativeSizeY.value
+			req.VaeTilingParams.TargetOverlap = vaeTilingParams.TargetOverlap.value
 			req.VaeTilingParams.TemporalTiling = false
-			//--
-			req.Lora = []LoraParams{} //TODO loraPanel.GetCurrentConfig()
+			//--Lora
+			req.Lora = loraPanel.GetCurrentConfig()
+			//-- Cache
+			req.CacheMode = "disabled" //TODO
 			//--
 			req.AutoResizeRefImage = true //TODO ???
 			req.EmbedImageMetadata = true
-			req.RefImages = []string{}  //TODO
-			req.CacheMode = "disabled"  //TODO
+			req.RefImages = []string{} //TODO
+
 			req.ScmPolicyDynamic = true //TODO
 			req.OutputFormat = "png"    //TODO
-			req.OutputCompression = 0   //TODO
+			req.OutputCompression = 100 //TODO
 
 			resp, err := sdAPI.ImgGetRequest(req)
 			if err != nil {
@@ -429,6 +463,19 @@ func main() {
 	// ---- РАЗДЕЛИТЕЛЬ ЛЕВОЙ И ПРАВОЙ ЧАСТЕЙ ----
 	splitLayout := container.NewHSplit(leftScroll, rightColumn)
 	splitLayout.Offset = 0.55
+
+	myWindow.SetOnClosed(func() { //
+		currentConfig.IP = ipEntry.Text
+		currentConfig.Port = portEntry.Text
+
+		jsonData, err := json.MarshalIndent(currentConfig, "", "    ")
+		if err == nil {
+			err = os.WriteFile(configFileName, jsonData, 0644)
+			if err != nil {
+				fmt.Println("Error save config:", err)
+			}
+		}
+	})
 
 	// ---- ФИНАЛЬНАЯ КОМПОНОВКА ----
 	content := container.NewBorder(nil, statusBar, nil, nil, splitLayout)

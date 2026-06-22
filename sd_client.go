@@ -44,7 +44,7 @@ func (c *SDClient) SetAddress(ip, port string) {
 func (c *SDClient) CheckConnection() (*CapabilitiesResponse, error) {
 	if c.baseURL == "" {
 		c.isConnected = false
-		return nil, fmt.Errorf("адрес сервера не задан")
+		return nil, fmt.Errorf("Server address not set")
 	}
 
 	url := fmt.Sprintf("%s/sdcpp/v1/capabilities", c.baseURL)
@@ -57,14 +57,19 @@ func (c *SDClient) CheckConnection() (*CapabilitiesResponse, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		c.isConnected = false
-		return nil, fmt.Errorf("код ответа сервера: %d", resp.StatusCode)
+		return nil, fmt.Errorf("Server return code: %d", resp.StatusCode)
 	}
 
-	// Читаем JSON, чтобы убедиться, что это нужный нам API
+	var bodyBytes []byte
+	if bodyBytes, err = io.ReadAll(resp.Body); err != nil {
+		return nil, fmt.Errorf("Error read reply: %w", err)
+	}
+	fmt.Printf("GetJobStatus response body: %s\n", string(bodyBytes))
+
 	var caps CapabilitiesResponse
-	if err := json.NewDecoder(resp.Body).Decode(&caps); err != nil {
+	if err := json.Unmarshal(bodyBytes, &caps); err != nil {
 		c.isConnected = false
-		return nil, fmt.Errorf("ошибка парсинга JSON: %w", err)
+		return nil, fmt.Errorf("Error parse JSON: %w", err)
 	}
 
 	c.isConnected = true
@@ -73,13 +78,13 @@ func (c *SDClient) CheckConnection() (*CapabilitiesResponse, error) {
 
 func (c *SDClient) ImgGetRequest(req ImgGenRequest) (*GenResponse, error) {
 	if c.isConnected == false {
-		return nil, fmt.Errorf("сервер не подключен")
+		return nil, fmt.Errorf("Server is not connected")
 	}
 
 	url := fmt.Sprintf("%s/sdcpp/v1/img_gen", c.baseURL)
 	payload, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка кодирования запроса в JSON: %w", err)
+		return nil, fmt.Errorf("Error make JSON: %w", err)
 	}
 
 	fmt.Printf("json: %+v\n", string(payload))
@@ -93,14 +98,14 @@ func (c *SDClient) ImgGetRequest(req ImgGenRequest) (*GenResponse, error) {
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		errMsg := readErrorMessage(resp)
 		if errMsg != "" {
-			return nil, fmt.Errorf("код ответа сервера: %d: %s", resp.StatusCode, errMsg)
+			return nil, fmt.Errorf("Server ret code: %d: %s", resp.StatusCode, errMsg)
 		}
-		return nil, fmt.Errorf("код ответа сервера: %d", resp.StatusCode)
+		return nil, fmt.Errorf("Server ret code: %d", resp.StatusCode)
 	}
 
 	var genResp GenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&genResp); err != nil {
-		return nil, fmt.Errorf("ошибка парсинга JSON ответа: %w", err)
+		return nil, fmt.Errorf("Error parse JSON: %w", err)
 	}
 
 	return &genResp, nil
@@ -109,7 +114,7 @@ func (c *SDClient) ImgGetRequest(req ImgGenRequest) (*GenResponse, error) {
 func readErrorMessage(resp *http.Response) string {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Sprintf("ошибка чтения тела ответа: %v", err)
+		return fmt.Sprintf("Error read reply: %v", err)
 	}
 	return extractErrorMessage(body)
 }
@@ -134,7 +139,7 @@ func formatErrorBody(body []byte) string {
 
 func (c *SDClient) GetJobStatus(id string) (*JobResponse, error) {
 	if c.isConnected == false {
-		return nil, fmt.Errorf("сервер не подключен")
+		return nil, fmt.Errorf("Server is not connected")
 	}
 
 	url := fmt.Sprintf("%s/sdcpp/v1/jobs/%s", c.baseURL, strings.TrimSpace(id))
@@ -146,7 +151,7 @@ func (c *SDClient) GetJobStatus(id string) (*JobResponse, error) {
 
 	var bodyBytes []byte
 	if bodyBytes, err = io.ReadAll(resp.Body); err != nil {
-		return nil, fmt.Errorf("ошибка чтения тела ответа: %w", err)
+		return nil, fmt.Errorf("Error read reply: %w", err)
 	}
 	//fmt.Printf("GetJobStatus response body: %s\n", string(bodyBytes))
 
@@ -154,24 +159,24 @@ func (c *SDClient) GetJobStatus(id string) (*JobResponse, error) {
 	case http.StatusOK:
 		var jobResp JobResponse
 		if err := json.Unmarshal(bodyBytes, &jobResp); err != nil {
-			return nil, fmt.Errorf("ошибка парсинга JSON ответа: %w", err)
+			return nil, fmt.Errorf("Error parse JSON: %w", err)
 		}
 		return &jobResp, nil
 	case http.StatusNotFound:
-		return nil, fmt.Errorf("job не найден: %s%s", id, formatErrorBody(bodyBytes))
+		return nil, fmt.Errorf("Job not found: %s%s", id, formatErrorBody(bodyBytes))
 	case http.StatusGone:
-		return nil, fmt.Errorf("job %s завершён и недоступен (410 Gone)%s", id, formatErrorBody(bodyBytes))
+		return nil, fmt.Errorf("Job %s is gone %s", id, formatErrorBody(bodyBytes))
 	default:
 		if msg := formatErrorBody(bodyBytes); msg != "" {
-			return nil, fmt.Errorf("код ответа сервера: %d%s", resp.StatusCode, msg)
+			return nil, fmt.Errorf("Server ret code: %d%s", resp.StatusCode, msg)
 		}
-		return nil, fmt.Errorf("код ответа сервера: %d", resp.StatusCode)
+		return nil, fmt.Errorf("Server ret code: %d", resp.StatusCode)
 	}
 }
 
 func (c *SDClient) CancelJob(id string) (*GenResponse, error) {
 	if c.isConnected == false {
-		return nil, fmt.Errorf("сервер не подключен")
+		return nil, fmt.Errorf("Server is not connected")
 	}
 
 	url := fmt.Sprintf("%s/sdcpp/v1/jobs/%s/cancel", c.baseURL, strings.TrimSpace(id))
@@ -183,26 +188,26 @@ func (c *SDClient) CancelJob(id string) (*GenResponse, error) {
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка чтения тела ответа: %w", err)
+		return nil, fmt.Errorf("Error read reply: %w", err)
 	}
 
 	switch resp.StatusCode {
 	case http.StatusOK:
 		var genResp GenResponse
 		if err := json.Unmarshal(bodyBytes, &genResp); err != nil {
-			return nil, fmt.Errorf("ошибка парсинга JSON ответа: %w", err)
+			return nil, fmt.Errorf("Error parse JSON: %w", err)
 		}
 		return &genResp, nil
 	case http.StatusNotFound:
-		return nil, fmt.Errorf("job не найден: %s%s", id, formatErrorBody(bodyBytes))
+		return nil, fmt.Errorf("Job not found: %s%s", id, formatErrorBody(bodyBytes))
 	case http.StatusConflict:
-		return nil, fmt.Errorf("нельзя отменить job %s: конфликт состояния (409)%s", id, formatErrorBody(bodyBytes))
+		return nil, fmt.Errorf("You can't cancel a job %s: %s", id, formatErrorBody(bodyBytes))
 	case http.StatusGone:
-		return nil, fmt.Errorf("job %s завершён и недоступен (410 Gone)%s", id, formatErrorBody(bodyBytes))
+		return nil, fmt.Errorf("Job %s is gone %s", id, formatErrorBody(bodyBytes))
 	default:
 		if msg := formatErrorBody(bodyBytes); msg != "" {
-			return nil, fmt.Errorf("код ответа сервера: %d%s", resp.StatusCode, msg)
+			return nil, fmt.Errorf("Server ret code: %d%s", resp.StatusCode, msg)
 		}
-		return nil, fmt.Errorf("код ответа сервера: %d", resp.StatusCode)
+		return nil, fmt.Errorf("Server ret code: %d", resp.StatusCode)
 	}
 }

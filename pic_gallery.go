@@ -62,7 +62,7 @@ func (t *TappableImage) Tapped(_ *fyne.PointEvent) {
 }
 
 func openGallery(myApp fyne.App) {
-	galleryWin := myApp.NewWindow("Галерея картинок")
+	galleryWin := myApp.NewWindow("Gallery")
 	galleryWin.Resize(fyne.NewSize(1920, 1080))
 
 	var popUpImg *widget.PopUp
