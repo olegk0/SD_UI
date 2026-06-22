@@ -2,6 +2,8 @@
 
 A lightweight, cross-platform Graphical User Interface (GUI) for generating images with **stable-diffusion.cpp**, built purely in Go using the **Fyne** toolkit.
 
+![main window](prg.png)
+
 This project acts as a client frontend that connects directly to a running `sd-server` instance.
 
 ## 🚀 Features & Current State
