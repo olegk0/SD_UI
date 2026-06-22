@@ -239,7 +239,7 @@ func main() {
 	testBtn := widget.NewButton("Connect", func() {
 		modelLabel.SetText("Model:")
 		if ipEntry.Text == "" {
-			statusLabel.SetText("Статус: Ошибка (Введите IP)")
+			statusLabel.SetText("Status: Error (Enter IP)")
 			return
 		}
 
@@ -251,11 +251,11 @@ func main() {
 
 		// 3. Этот код выполнится ТОЛЬКО после того, как запрос завершится или отвалится по таймауту
 		if err != nil {
-			statusLabel.SetText(fmt.Sprintf("Статус: ❌ Ошибка (%v)", err.Error()))
+			statusLabel.SetText(fmt.Sprintf("Status: ❌ Error (%v)", err.Error()))
 		} else {
 			JobID = ""
 			CapsResp = *caps
-			statusLabel.SetText("Статус:  Подключено успешно!")
+			statusLabel.SetText("Status: Connected!")
 			modelLabel.SetText(fmt.Sprintf("Model: %s (mode: %s)", caps.Model.Name, caps.CurrentMode))
 			sampleParams.SchedulerSelect.Options = caps.Schedulers
 			sampleParams.MethodSelect.Options = caps.Samplers
