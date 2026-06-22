@@ -154,8 +154,8 @@ func main() {
 	//negativeContainer := container.NewStack(negativeInput)
 	//negativeContainer.Resize(fyne.NewSize(0, 100))
 
-	widthInput := NewNumberStepper(64, 1024, 32, 128, true)
-	heightInput := NewNumberStepper(64, 1024, 32, 128, true)
+	widthInput := NewNumberStepper(64, 1024, 16, 128, true)
+	heightInput := NewNumberStepper(64, 1024, 16, 128, true)
 
 	sizeRow := container.NewGridWithColumns(2,
 		container.NewVBox(widget.NewLabel("Width"), widthInput.Container),
@@ -526,7 +526,7 @@ func main() {
 	actionRow := container.NewGridWithColumns(2, generateBtn, cancelBtn)
 
 	galleryBtn := widget.NewButton("Gallery", func() {
-		openGallery(myApp, func(params SDCPPParams) {
+		Gallery(myApp, func(params SDCPPParams) {
 			sampleParams.SchedulerSelect.SetSelected(params.Sampling.Scheduler)
 			sampleParams.MethodSelect.SetSelected(params.Sampling.Method)
 			//
