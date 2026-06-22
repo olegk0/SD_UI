@@ -177,7 +177,7 @@ func showFullImage(myApp fyne.App, parentWin fyne.Window, imgPath, exifInfo stri
 		var params SDCPPParams
 		err := json.Unmarshal([]byte(jsonString), &params) // Декодируем байты в объект
 		if err != nil {
-			fmt.Printf("Ошибка парсинга JSON: %v\n", err)
+			fmt.Printf("Error parse JSON: %v\n", err)
 			return
 		}
 		setParams(params)

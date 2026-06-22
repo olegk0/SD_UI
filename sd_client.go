@@ -153,13 +153,16 @@ func (c *SDClient) GetJobStatus(id string) (*JobResponse, error) {
 	if bodyBytes, err = io.ReadAll(resp.Body); err != nil {
 		return nil, fmt.Errorf("Error read reply: %w", err)
 	}
-	fmt.Printf("GetJobStatus response body: %s\n", string(bodyBytes))
+	//fmt.Printf("GetJobStatus response body: %s\n", string(bodyBytes))
 
 	switch resp.StatusCode {
 	case http.StatusOK:
 		var jobResp JobResponse
 		if err := json.Unmarshal(bodyBytes, &jobResp); err != nil {
 			return nil, fmt.Errorf("Error parse JSON: %w", err)
+		}
+		if jobResp.Status == "failed" {
+			return nil, fmt.Errorf("Job failed: %s", jobResp.Error.Message)
 		}
 		return &jobResp, nil
 	case http.StatusNotFound:
