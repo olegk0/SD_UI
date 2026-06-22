@@ -17,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -122,6 +123,11 @@ func parseGuidance(guidance GuidanceConfig, guidanceParams *GuidanceParamsPanel)
 func main() {
 	var JobID string
 	var CapsResp CapabilitiesResponse
+
+	var batch_imgs []image.Image
+	currentBatchPage := 0
+	//totalPages := 10
+
 	myApp := app.New()
 	myWindow := myApp.NewWindow("Stable Diffusion CPP GUI")
 	//myWindow.Resize(fyne.NewSize(1920, 1080))
@@ -133,7 +139,6 @@ func main() {
 	// ---- ЛЕВАЯ КОЛОНКА (настройки) ----
 	promptInput := widget.NewMultiLineEntry()
 	//promptInput.SetText("A hyperrealistic digital oil painting of a magical encounter...")
-	promptInput.SetText("big home")
 	promptInput.SetPlaceHolder("Enter your prompt here...")
 	promptInput.Wrapping = fyne.TextWrapWord
 	promptInput.SetMinRowsVisible(10)
@@ -308,17 +313,49 @@ func main() {
 
 	imageContainer := container.NewStack(backgroundRect, imagePlaceholder)
 
-	jobStatusLabel := widget.NewLabel("Idle")
-	jobQueueLabel := widget.NewLabel("")
-	jobCreatedLabel := widget.NewLabel("")
+	jobStatusLabel := widget.NewLabelWithStyle("Idle", fyne.TextAlignCenter, fyne.TextStyle{Bold: false})
+	elapsedLabel := widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{Bold: false})
+	jobCreatedLabel := widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{Bold: false})
 	statusCard := container.NewGridWithColumns(3,
-		container.NewVBox(widget.NewLabel("Status"), jobStatusLabel),
-		container.NewVBox(widget.NewLabel("Queue"), jobQueueLabel),
-		container.NewVBox(widget.NewLabel("Created"), jobCreatedLabel),
+		container.NewVBox(widget.NewLabelWithStyle("Status", fyne.TextAlignCenter,
+			fyne.TextStyle{Bold: true}), jobStatusLabel),
+		container.NewVBox(widget.NewLabelWithStyle("Created", fyne.TextAlignCenter,
+			fyne.TextStyle{Bold: true}), jobCreatedLabel),
+		container.NewVBox(widget.NewLabelWithStyle("Elapsed:", fyne.TextAlignCenter,
+			fyne.TextStyle{Bold: true}), elapsedLabel),
 	)
 
-	elapsedLabel := widget.NewLabel("")
-	infoLabel := widget.NewLabel("Image generation completed.")
+	infoLabel := widget.NewLabel("Idle.")
+
+	batchCntLabel := widget.NewLabelWithStyle(
+		"",
+		fyne.TextAlignCenter,
+		fyne.TextStyle{Bold: true},
+	)
+	leftBatchBtn := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() {
+		if currentBatchPage > 0 {
+			currentBatchPage--
+			batchCntLabel.SetText(fmt.Sprintf("%d of %d", currentBatchPage+1, len(batch_imgs)))
+			imagePlaceholder.Image = batch_imgs[currentBatchPage]
+			imagePlaceholder.Refresh()
+		}
+	})
+	rightBatchBtn := widget.NewButtonWithIcon("", theme.NavigateNextIcon(), func() {
+		if currentBatchPage < len(batch_imgs)-1 {
+			currentBatchPage++
+			batchCntLabel.SetText(fmt.Sprintf("%d of %d", currentBatchPage+1, len(batch_imgs)))
+			imagePlaceholder.Image = batch_imgs[currentBatchPage]
+			imagePlaceholder.Refresh()
+		}
+	})
+	batchNavContainer := container.NewBorder(
+		nil,
+		nil,
+		leftBatchBtn,  // Кнопка строго слева
+		rightBatchBtn, // Кнопка строго справа
+		batchCntLabel, // Текст растягивается по центру
+	)
+	batchNavContainer.Hide()
 
 	var generateBtn *widget.Button
 	generateBtn = widget.NewButton("Generate Image", func() {
@@ -408,7 +445,7 @@ func main() {
 				beginTimestamp := time.Now().Unix()
 				fmt.Printf("Response: %+v\n", resp) //infoLabel.SetText(fmt.Sprintf("Response: %v", resp))
 				go func() {
-					defer generateBtn.Enable()
+					defer fyne.Do(func() { generateBtn.Enable() })
 					for tmo := 0; tmo < 60*5; tmo++ { //sec
 						//TODO jobQueueLabel
 						var job_stat *JobResponse
@@ -425,35 +462,49 @@ func main() {
 							fyne.Do(func() {
 								infoLabel.SetText("Image generation completed.")
 							})
-							// Берем b64-строку первой картинки
-							b64Data := job_stat.Result.Images[0].B64JSON
 
-							// 2. Декодируем Base64 строку в байты
-							imgBytes, err := base64.StdEncoding.DecodeString(b64Data)
-							if err != nil {
-								fyne.Do(func() {
-									infoLabel.SetText(fmt.Sprintf("Ошибка декодирования Base64: %v\n", err))
-									jobStatusLabel.SetText("Error")
-								})
-								return
-							}
-							file_name := fmt.Sprintf("images/%d.png", resp.Created)
-							os.WriteFile(file_name, imgBytes, 0644)
+							batch_imgs = nil
+							currentBatchPage = 0
 
-							// 3. Создаем стандартный image.Image из байт
-							img, _, err := image.Decode(bytes.NewReader(imgBytes))
-							if err != nil {
-								fyne.Do(func() {
-									infoLabel.SetText(fmt.Sprintf("Ошибка парсинга изображения: %v\n", err))
-									jobStatusLabel.SetText("Error")
-								})
-								return
+							if len(job_stat.Result.Images) > 1 {
+								batchNavContainer.Show()
+							} else {
+								batchNavContainer.Hide()
 							}
 
+							for i, b64Data := range job_stat.Result.Images {
+								// Берем b64-строку  картинки
+
+								// 2. Декодируем Base64 строку в байты
+								imgBytes, err := base64.StdEncoding.DecodeString(b64Data.B64JSON)
+								if err != nil {
+									fyne.Do(func() {
+										infoLabel.SetText(fmt.Sprintf("Error decode Base64: %v\n", err))
+										jobStatusLabel.SetText("Error")
+									})
+									continue
+								}
+								file_name := fmt.Sprintf("images/%d_%d.png", resp.Created, i)
+								os.WriteFile(file_name, imgBytes, 0644)
+
+								img, _, err := image.Decode(bytes.NewReader(imgBytes))
+								if err != nil {
+									fyne.Do(func() {
+										infoLabel.SetText(fmt.Sprintf("Error img parse: %v\n", err))
+										jobStatusLabel.SetText("Error")
+									})
+									continue
+								}
+								batch_imgs = append(batch_imgs, img)
+							}
+							if len(batch_imgs) > 0 {
+								fyne.Do(func() {
+									imagePlaceholder.Image = batch_imgs[0]
+									batchCntLabel.SetText(fmt.Sprintf("%d of %d", currentBatchPage+1, len(batch_imgs)))
+								})
+							}
 							fyne.Do(func() {
-								// 4. Записываем изображение в наш Rectangle
-								imagePlaceholder.Image = img // Присваиваем декодированное изображение
-								imagePlaceholder.Refresh()   // Перерисовываем элемент на экране
+								imagePlaceholder.Refresh()
 								jobStatusLabel.SetText("Completed")
 							})
 							break
@@ -461,7 +512,7 @@ func main() {
 						time.Sleep(time.Second)
 						diff_Time := time.Now().Unix() - beginTimestamp
 						fyne.Do(func() {
-							elapsedLabel.SetText(fmt.Sprintf("Elapsed: %v:%02v", diff_Time/60, diff_Time%60))
+							elapsedLabel.SetText(fmt.Sprintf("%v:%02v", diff_Time/60, diff_Time%60))
 							elapsedLabel.Refresh()
 						})
 					}
@@ -511,8 +562,8 @@ func main() {
 		widget.NewSeparator(),
 		galleryBtn, //widget.NewLabel("OUTPUT"),
 		imageContainer,
+		batchNavContainer,
 		statusCard,
-		elapsedLabel,
 		infoLabel,
 		actionRow,
 	)

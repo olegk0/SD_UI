@@ -64,7 +64,7 @@ func (c *SDClient) CheckConnection() (*CapabilitiesResponse, error) {
 	if bodyBytes, err = io.ReadAll(resp.Body); err != nil {
 		return nil, fmt.Errorf("Error read reply: %w", err)
 	}
-	fmt.Printf("GetJobStatus response body: %s\n", string(bodyBytes))
+	//fmt.Printf("GetJobStatus response body: %s\n", string(bodyBytes))
 
 	var caps CapabilitiesResponse
 	if err := json.Unmarshal(bodyBytes, &caps); err != nil {
@@ -153,7 +153,7 @@ func (c *SDClient) GetJobStatus(id string) (*JobResponse, error) {
 	if bodyBytes, err = io.ReadAll(resp.Body); err != nil {
 		return nil, fmt.Errorf("Error read reply: %w", err)
 	}
-	//fmt.Printf("GetJobStatus response body: %s\n", string(bodyBytes))
+	fmt.Printf("GetJobStatus response body: %s\n", string(bodyBytes))
 
 	switch resp.StatusCode {
 	case http.StatusOK:
