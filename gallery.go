@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -54,7 +55,11 @@ func NewTappableImageFile(path string, onTap func()) *TappableImage {
 	return tappable
 }
 
-// Обязательный метод для отображения содержимого кастомного виджета
+func (t *TappableImage) Cursor() desktop.Cursor {
+	// Возвращаем стандартный курсор руки-указателя (Pointer)
+	return desktop.PointerCursor
+}
+
 func (t *TappableImage) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(t.image)
 }
@@ -547,7 +552,7 @@ func (ab *AdvancedBrowser) removeFromSlice(slice *[]string, value string) {
 }
 
 func Gallery(myApp fyne.App, setParams func(SDCPPParams)) {
-	galleryWin := myApp.NewWindow("Gallery")
+	galleryWin := myApp.NewWindow("Gallery — Press ESC to close")
 
 	rootDir := "./images"
 	_ = os.MkdirAll(rootDir, 0755)
