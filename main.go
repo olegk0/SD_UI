@@ -8,8 +8,6 @@ import (
 	"image"
 	"image/color"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -26,94 +24,6 @@ const configFileName = "config.json"
 type AppConfig struct {
 	IP   string `json:"ip"`
 	Port string `json:"port"`
-}
-
-func loadConfig() AppConfig {
-
-	jsonData, err := os.ReadFile(configFileName)
-	if err != nil {
-		fmt.Println("Error read config:", err)
-	} else {
-		var config AppConfig
-		err = json.Unmarshal(jsonData, &config)
-		if err != nil {
-			fmt.Println("Error parse config:", err)
-		} else {
-			return config
-		}
-	}
-	return AppConfig{
-		IP:   "127.0.0.1",
-		Port: "1234",
-	}
-}
-
-func formatTimestamp(ts *int64) string {
-	if ts == nil {
-		return "—" // Или "Не запущено" / "В очереди"
-	}
-
-	// 1. Превращаем int64 в объект time.Time
-	t := time.Unix(*ts, 0)
-
-	// 2. Форматируем по эталонному шаблону Go: "02.01.2006 15:04:05"
-	// (В Go вместо символов YYYY-MM-DD используется строго это эталонное время)
-	return t.Format("02.01.2006 15:04:05")
-}
-
-func stringToIntSlice(input string) []int {
-	// 1. Удаляем случайные пробелы по краям строки
-	cleaned := strings.TrimSpace(input)
-	if cleaned == "" {
-		return []int{}
-	}
-
-	// 2. Разбиваем строку по запятой
-	strParts := strings.Split(cleaned, ",")
-	intSlice := make([]int, 0, len(strParts))
-
-	// 3. Конвертируем каждую часть в число
-	for _, part := range strParts {
-		// Удаляем пробелы вокруг конкретного числа (например, если было "1, 2 , 3")
-		trimmedPart := strings.TrimSpace(part)
-
-		num, err := strconv.Atoi(trimmedPart)
-		if err != nil {
-			fmt.Printf("Error conversion '%s' to int: %w", trimmedPart, err)
-			return []int{}
-		}
-		intSlice = append(intSlice, num)
-	}
-
-	return intSlice
-}
-
-func intSliceToString(numbers []int) string {
-	if len(numbers) == 0 {
-		return ""
-	}
-
-	// 1. Создаем массив строк нужной длины
-	strParts := make([]string, len(numbers))
-
-	// 2. Превращаем каждое число в строку
-	for i, num := range numbers {
-		strParts[i] = strconv.Itoa(num)
-	}
-
-	// 3. Объединяем их через запятую
-	return strings.Join(strParts, ",")
-}
-
-func parseGuidance(guidance GuidanceConfig, guidanceParams *GuidanceParamsPanel) {
-	guidanceParams.DistilledInput.SetValue(guidance.DistilledGuidance)
-	guidanceParams.TxtCfgInput.SetValue(guidance.TxtCfg)
-	guidanceParams.ImageCfgInput.SetValue(guidance.ImgCfg)
-	// Slg
-	guidanceParams.SlgLayerEndInput.SetValue(guidance.Slg.LayerEnd)
-	guidanceParams.SlgLayerStartInput.SetValue(guidance.Slg.LayerStart)
-	guidanceParams.SlgScaleInput.SetValue(guidance.Slg.Scale)
-	guidanceParams.SlgLayersInput.SetText(intSliceToString(guidance.Slg.Layers))
 }
 
 // ==========================================
@@ -176,17 +86,19 @@ func main() {
 	vaeTilingParams := createVaeTilingContent()
 	cacheParams := createCacheContent()
 	hiResParams := createHiResContent()
+	imageInputsParams := createImageInputsContent(myWindow)
 
 	accordion := widget.NewAccordion(
 		widget.NewAccordionItem("SAMPLE", sampleParams.Container),
 		widget.NewAccordionItem("GUIDANCE", GuidanceParams.Container),
 		widget.NewAccordionItem("CONDITIONING", conditioningParams.Container),
 		widget.NewAccordionItem("LORA", loraPanel.Container),
-		widget.NewAccordionItem("IMAGE INPUTS", createImageInputsContent()),
+		widget.NewAccordionItem("IMAGE INPUTS", imageInputsParams.Container),
 		widget.NewAccordionItem("VAE TILING", vaeTilingParams.Container),
 		widget.NewAccordionItem("CACHE", cacheParams.Container),
 		widget.NewAccordionItem("HIRES", hiResParams.Container),
 	)
+	accordion.MultiOpen = true
 
 	leftColumn := container.NewVBox(
 		widget.NewLabel("INPUT"),
@@ -236,6 +148,8 @@ func main() {
 		JobID = ""
 	})
 
+	var generateBtn *widget.Button
+
 	testBtn := widget.NewButton("Connect", func() {
 		modelLabel.SetText("Model:")
 		if ipEntry.Text == "" {
@@ -255,6 +169,7 @@ func main() {
 		} else {
 			JobID = ""
 			CapsResp = *caps
+			generateBtn.Enable()
 			statusLabel.SetText("Status: Connected!")
 			modelLabel.SetText(fmt.Sprintf("Model: %s (mode: %s)", caps.Model.Name, caps.CurrentMode))
 			sampleParams.SchedulerSelect.Options = caps.Schedulers
@@ -357,7 +272,6 @@ func main() {
 	)
 	batchNavContainer.Hide()
 
-	var generateBtn *widget.Button
 	generateBtn = widget.NewButton("Generate Image", func() {
 		if sdAPI.isConnected == true {
 			generateBtn.Disable() // Блокируем кнопку, чтобы предотвратить повторные нажатия
@@ -423,13 +337,33 @@ func main() {
 			//--Lora
 			req.Lora = loraPanel.GetCurrentConfig()
 			//-- Cache
-			req.CacheMode = "disabled" //TODO
-			//--
+			req.CacheMode = cacheParams.ModeSelect.Selected
+			req.CacheOption = cacheParams.CacheOption.Text
+			req.ScmMask = cacheParams.ScmMask.Text
+			req.ScmPolicyDynamic = cacheParams.DynamicScmCheck.Checked
+			//--img2img
 			req.AutoResizeRefImage = true //TODO ???
+			req.RefImages = []string{}
+			if imageInputsParams.EnabledCheck.Checked {
+				req.InitImage = FileToBase64(imageInputsParams.InitImagePath[0])
+				req.MaskImage = FileToBase64(imageInputsParams.MaskImagePath[0])
+				req.ControlImage = FileToBase64(imageInputsParams.ControlImagePath[0])
+				if imageInputsParams.RefImagePathList != nil {
+					for _, filePath := range imageInputsParams.RefImagePathList {
+						lstr := FileToBase64(filePath)
+						if lstr != nil && len(*lstr) > 0 {
+							req.RefImages = append(req.RefImages, *lstr)
+						}
+					}
+				}
+			} else {
+				req.InitImage = nil
+				req.MaskImage = nil
+				req.ControlImage = nil
+				//req.RefImages = []string{}
+			}
+			//--
 			req.EmbedImageMetadata = true
-			req.RefImages = []string{} //TODO
-
-			req.ScmPolicyDynamic = true //TODO
 			req.OutputFormat = "png"    //TODO
 			req.OutputCompression = 100 //TODO
 
@@ -522,11 +456,15 @@ func main() {
 		}
 	})
 	generateBtn.Importance = widget.HighImportance
+	generateBtn.Disable()
 
 	actionRow := container.NewGridWithColumns(2, generateBtn, cancelBtn)
 
-	galleryBtn := widget.NewButton("Gallery", func() {
-		Gallery(myApp, func(params SDCPPParams) {
+	var galleryBtn *widget.Button
+
+	galleryBtn = widget.NewButton("Gallery", func() {
+		galleryBtn.Disable()
+		galleryWin := Gallery(myApp, func(params SDCPPParams) {
 			sampleParams.SchedulerSelect.SetSelected(params.Sampling.Scheduler)
 			sampleParams.MethodSelect.SetSelected(params.Sampling.Method)
 			//
@@ -553,6 +491,9 @@ func main() {
 			//-- Upscalers
 			// TODO hiResParams.UpscalerSelect.SetSelected("disabled")
 			leftScroll.Refresh()
+		})
+		galleryWin.SetOnClosed(func() {
+			galleryBtn.Enable()
 		})
 	})
 

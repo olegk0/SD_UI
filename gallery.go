@@ -7,8 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"unicode/utf8"
 
@@ -321,7 +324,6 @@ func (ab *AdvancedBrowser) initUI() {
 		}, ab.Window)
 	})
 
-	// УЛУЧШЕНО: Кнопка-переключатель "Выбрать всё / Снять выделение"
 	var selectAllBtn *widget.Button
 	selectAllBtn = widget.NewButton("Select all", func() {
 		// Проверяем, есть ли хотя бы один невыделенный чекбокс
@@ -445,7 +447,36 @@ func (ab *AdvancedBrowser) initUI() {
 		ab.Refresh()
 	})
 
-	ab.TopBar = container.NewHBox(ab.BackButton, newDirBtn, selectAllBtn, renameBtn, cutBtn, pasteBtn, deleteBtn, ab.PathLabel)
+	refreshBtn := widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), func() {
+		ab.Refresh()
+	})
+
+	openFolderBtn := widget.NewButtonWithIcon("Open Folder", theme.FolderOpenIcon(), func() {
+		var cmd *exec.Cmd
+
+		switch runtime.GOOS {
+		case "windows":
+			// explorer.exe открывает проводник Windows
+			cmd = exec.Command("explorer", ab.CurrentDir)
+		case "darwin":
+			// open открывает Finder на macOS
+			cmd = exec.Command("open", ab.CurrentDir)
+		case "linux":
+			// xdg-open открывает дефолтный файловый менеджер в Linux (Nautilus, Dolphin и др.)
+			cmd = exec.Command("xdg-open", ab.CurrentDir)
+		default:
+			log.Printf("OS %s not support", runtime.GOOS)
+			return
+		}
+
+		// Запускаем команду в фоновом режиме, чтобы GUI приложения не зависал
+		err := cmd.Start()
+		if err != nil {
+			fmt.Printf("Error start file manager: %v\n", err)
+		}
+	})
+
+	ab.TopBar = container.NewHBox(ab.BackButton, newDirBtn, selectAllBtn, renameBtn, cutBtn, pasteBtn, deleteBtn, refreshBtn, openFolderBtn, ab.PathLabel)
 }
 
 func (ab *AdvancedBrowser) Refresh() {
@@ -551,12 +582,11 @@ func (ab *AdvancedBrowser) removeFromSlice(slice *[]string, value string) {
 	}
 }
 
-func Gallery(myApp fyne.App, setParams func(SDCPPParams)) {
+func Gallery(myApp fyne.App, setParams func(SDCPPParams)) fyne.Window {
 	galleryWin := myApp.NewWindow("Gallery — Press ESC to close")
 
-	rootDir := "./images"
-	_ = os.MkdirAll(rootDir, 0755)
-	absRoot, _ := filepath.Abs(rootDir)
+	_ = os.MkdirAll(ImageRootDir, 0755)
+	absRoot, _ := filepath.Abs(ImageRootDir)
 
 	browser := &AdvancedBrowser{
 		Window:        galleryWin,
@@ -592,4 +622,5 @@ func Gallery(myApp fyne.App, setParams func(SDCPPParams)) {
 	galleryWin.SetContent(container.NewPadded(mainLayout))
 	galleryWin.Resize(fyne.NewSize(1920, 1080))
 	galleryWin.Show()
+	return galleryWin
 }

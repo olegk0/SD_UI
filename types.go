@@ -1,5 +1,7 @@
 package main
 
+const ImageRootDir = "./images"
+
 type ModelInfo struct {
 	Name string `json:"name"`
 	Path string `json:"path"`

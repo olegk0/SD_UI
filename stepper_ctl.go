@@ -75,13 +75,14 @@ func (s *NumberStepper) formatValue(val float64) string {
 }
 
 func (s *NumberStepper) roundToStep(val float64) float64 {
-	if s.IsInteger && s.Step != 1 && s.Step > 0 {
-		return math.Round(val/s.Step) * s.Step
-	}
 	if s.IsInteger {
-		return math.Round(val)
+		if s.Step != 1 && s.Step > 0 {
+			return math.Round(val/s.Step) * s.Step
+		} else {
+			return math.Round(val)
+		}
 	}
-	return val
+	return math.Round(val*1000) / 1000
 }
 
 func (s *NumberStepper) SetValue(val float64) {
