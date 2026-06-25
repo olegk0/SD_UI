@@ -1,9 +1,14 @@
 ## Go Fyne GUI for stable-diffusion.cpp
 
 A lightweight, cross-platform Graphical User Interface (GUI) for generating images with stable-diffusion.cpp, built in Go using the Fyne toolkit.
+
+![main window](prg.png)
+
 This project acts as a client frontend that connects directly to a running sd-server instance.
 
-## 🚀 Features & Current State## Core Functionality
+## 🚀 Features & Current State
+
+## Core Functionality
 
 * txt2img & img2img: Full support for most stable-diffusion.cpp parameters.
 * Inpainting: Full support using init_image, mask_image, and ref_images (control_image not tested).
