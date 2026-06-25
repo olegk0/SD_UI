@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"image"
 	"image/color"
 	"path/filepath"
 
@@ -183,59 +185,45 @@ func createLoraContent() fyne.CanvasObject {
 	return container.NewVBox(label, container.NewHBox(addLoraBtn))
 }
 
+type ImgPair struct {
+	Path string
+	Data []byte
+}
+
 type ImageInputsParamsPanel struct {
 	Container        *fyne.Container
 	EnabledCheck     *widget.Check
-	InitImagePath    []string
-	MaskImagePath    []string
-	ControlImagePath []string
-	RefImagePathList []string
+	InitImageData    []byte
+	MaskImageData    []byte
+	ControlImageData []byte
+	RefImagesList    []ImgPair
 }
 
-func createImageInputsContent(parentWin fyne.Window) *ImageInputsParamsPanel {
-	imageInputsParams := ImageInputsParamsPanel{
-		InitImagePath:    []string{""},
-		MaskImagePath:    []string{""},
-		ControlImagePath: []string{""},
-		RefImagePathList: []string{""},
-	}
+func createImageInputsContent(myApp fyne.App, parentWin fyne.Window) *ImageInputsParamsPanel {
+	var imageInputsParams ImageInputsParamsPanel
 
 	enabledCheck := widget.NewCheck("Enabled", func(checked bool) {})
-	createUploadCard := func(title, description string, filesList *[]string, maxItems int, parentWin fyne.Window) fyne.CanvasObject {
+	createUploadCardMulti := func(description string, imgsList *[]ImgPair) fyne.CanvasObject {
 		// Контейнер для вертикального списка загруженных картинок с кнопками удаления
 		imagesListContainer := container.NewVBox()
-
-		mainImg := canvas.NewImageFromResource(nil)
-		mainImg.FillMode = canvas.ImageFillContain
-		if maxItems > 1 {
-			mainImg.SetMinSize(fyne.NewSize(150, 100))
-		} else {
-			mainImg.SetMinSize(fyne.NewSize(150, 150))
-		}
 
 		bg := canvas.NewRectangle(color.RGBA{R: 245, G: 245, B: 245, A: 255})
 		bg.StrokeColor = color.RGBA{R: 220, G: 220, B: 220, A: 255}
 		bg.StrokeWidth = 1
 		bg.CornerRadius = 8
-		imageContainer := container.NewStack(bg, mainImg)
 
 		// Текстовые элементы карточки
-		titleLabel := canvas.NewText(title, color.RGBA{R: 0, G: 255, B: 0, A: 255})
-		titleLabel.Alignment = fyne.TextAlignCenter
-
 		descLabel := widget.NewLabel(description)
 		descLabel.Alignment = fyne.TextAlignCenter
-		descLabel.Importance = widget.LowImportance
-
-		statusLabel := canvas.NewText("No file selected", color.RGBA{R: 255, G: 255, B: 0, A: 255})
-		statusLabel.Alignment = fyne.TextAlignCenter
+		descLabel.Importance = widget.HighImportance
 
 		var refreshImagesList func()
 
 		refreshImagesList = func() {
 			imagesListContainer.Objects = nil // Очищаем контейнер перед перерисовкой
 
-			for idx, path := range *filesList {
+			for idx, iitem := range *imgsList {
+				path := iitem.Path
 				if path == "" {
 					continue
 				}
@@ -256,14 +244,7 @@ func createImageInputsContent(parentWin fyne.Window) *ImageInputsParamsPanel {
 				currentIdx := idx
 
 				deleteBtn := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
-					*filesList = append((*filesList)[:currentIdx], (*filesList)[currentIdx+1:]...)
-
-					if len(*filesList) == 0 {
-						statusLabel.Text = "No file selected"
-					} else {
-						statusLabel.Text = fmt.Sprintf("Selected %d/%d files", len(*filesList), maxItems)
-					}
-
+					*imgsList = append((*imgsList)[:currentIdx], (*imgsList)[currentIdx+1:]...)
 					refreshImagesList()
 				})
 				deleteBtn.Importance = widget.DangerImportance
@@ -275,10 +256,6 @@ func createImageInputsContent(parentWin fyne.Window) *ImageInputsParamsPanel {
 		}
 
 		selectBtn := widget.NewButton("Select", func() {
-			if maxItems > 1 && len(*filesList) >= maxItems {
-				dialog.ShowInformation("Limit reached", fmt.Sprintf("Maximum %d items allowed", maxItems), parentWin)
-				return
-			}
 			fileDialog := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
 				if err != nil {
 					dialog.ShowError(err, parentWin)
@@ -291,20 +268,90 @@ func createImageInputsContent(parentWin fyne.Window) *ImageInputsParamsPanel {
 
 				filePath := reader.URI().Path()
 
-				if maxItems > 1 {
-					*filesList = append(*filesList, filePath)
-					statusLabel.Text = fmt.Sprintf("Selected %d/%d files", len(*filesList), maxItems)
-					refreshImagesList()
-				} else {
-					if len(*filesList) == 0 {
-						*filesList = append(*filesList, filePath)
-					} else {
-						(*filesList)[0] = filePath
-					}
-					statusLabel.Text = fmt.Sprintf("Selected: %s", filepath.Base(filePath))
-					mainImg.File = filePath
-					mainImg.Refresh()
-					mainImg.Show() // На всякий случай показываем, если было скрыто
+				var iitem ImgPair
+				iitem.Data = FileToArr(filePath)
+				iitem.Path = filePath
+				*imgsList = append(*imgsList, iitem)
+				refreshImagesList()
+			}, parentWin)
+
+			absPath, err := filepath.Abs(ImageRootDir)
+			if err != nil {
+				absPath = ImageRootDir
+			}
+			dirURI := storage.NewFileURI(absPath)
+			listableURI, err := storage.ListerForURI(dirURI)
+			if err != nil {
+				//fmt.Println("Ошибка создания ListableURI:", err)
+			} else {
+				fileDialog.SetLocation(listableURI)
+			}
+			fileDialog.SetFilter(storage.NewExtensionFileFilter([]string{".png", ".jpg", ".jpeg"}))
+			fileDialog.Show()
+		})
+
+		cleanBtn := widget.NewButton("Clean", func() {
+			*imgsList = []ImgPair{}
+			refreshImagesList()
+		})
+
+		buttonsBlock := container.NewHBox(selectBtn, cleanBtn)
+		cardContent := container.NewStack(bg, container.NewPadded(descLabel))
+
+		// Оборачиваем вертикальный список картинок в Scroll, чтобы окно не раздувалось до бесконечности
+		scrollableImageList := container.NewVScroll(imagesListContainer)
+		scrollableImageList.SetMinSize(fyne.NewSize(250, 120)) // Ограничиваем высоту зоны списка
+
+		return container.NewVBox(
+			cardContent,
+			buttonsBlock,
+			scrollableImageList, // Вертикальная лента с кнопками удаления появится тут
+		)
+	}
+
+	createUploadCard := func(title, description string, update_fun func(string), edit_fun func(func([]byte))) fyne.CanvasObject {
+		// Контейнер для вертикального списка загруженных картинок с кнопками удаления
+		imagesListContainer := container.NewVBox()
+
+		mainImg := canvas.NewImageFromResource(nil)
+		mainImg.FillMode = canvas.ImageFillContain
+		mainImg.SetMinSize(fyne.NewSize(150, 150))
+
+		bg := canvas.NewRectangle(color.RGBA{R: 245, G: 245, B: 245, A: 255})
+		bg.StrokeColor = color.RGBA{R: 220, G: 220, B: 220, A: 255}
+		bg.StrokeWidth = 1
+		bg.CornerRadius = 8
+		imageContainer := container.NewStack(bg, mainImg)
+
+		// Текстовые элементы карточки
+		titleLabel := canvas.NewText(title, color.RGBA{R: 0, G: 255, B: 0, A: 255})
+		titleLabel.Alignment = fyne.TextAlignCenter
+
+		descLabel := widget.NewLabel(description)
+		descLabel.Alignment = fyne.TextAlignCenter
+		descLabel.Importance = widget.LowImportance
+
+		statusLabel := canvas.NewText("No file selected", color.RGBA{R: 255, G: 255, B: 0, A: 255})
+		statusLabel.Alignment = fyne.TextAlignCenter
+
+		selectBtn := widget.NewButton("Select", func() {
+			fileDialog := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+				if err != nil {
+					dialog.ShowError(err, parentWin)
+					return
+				}
+				if reader == nil {
+					return
+				}
+				defer reader.Close()
+				filePath := reader.URI().Path()
+				statusLabel.Text = fmt.Sprintf("Selected: %s", filepath.Base(filePath))
+				mainImg.Resource = nil
+				mainImg.File = filePath
+				mainImg.Refresh()
+				mainImg.Show()
+				if update_fun != nil {
+					update_fun(filePath)
 				}
 
 			}, parentWin)
@@ -325,21 +372,38 @@ func createImageInputsContent(parentWin fyne.Window) *ImageInputsParamsPanel {
 		})
 
 		cleanBtn := widget.NewButton("Clean", func() {
-			*filesList = []string{}
 			statusLabel.Text = "No file selected"
-
-			if maxItems > 1 {
-				refreshImagesList()
-			} else {
-				mainImg.File = ""
-				mainImg.Refresh()
-				mainImg.Hide()
+			mainImg.Resource = nil
+			mainImg.File = ""
+			mainImg.Refresh()
+			mainImg.Hide()
+			if update_fun != nil {
+				update_fun("")
 			}
 		})
 
+		editBtn := widget.NewButton("Make/Edit", func() {
+			if edit_fun != nil {
+				statusLabel.Text = "Editor"
+				edit_fun(func(imgData []byte) {
+					fmt.Printf("Update img:%d", len(imgData))
+					if len(imgData) > 0 {
+						mainImg.File = ""
+						mainImg.Resource = fyne.NewStaticResource("editor.png", imgData)
+						mainImg.Show()
+						mainImg.Refresh()
+					}
+				})
+			}
+		})
+
+		if edit_fun == nil {
+			editBtn.Hide()
+		}
+
 		// Компоновка интерфейса карточки
 		centerText := container.NewVBox(titleLabel, descLabel, statusLabel)
-		buttonsBlock := container.NewHBox(selectBtn, cleanBtn)
+		buttonsBlock := container.NewHBox(selectBtn, cleanBtn, editBtn)
 
 		cardContent := container.NewStack(imageContainer, container.NewPadded(centerText))
 
@@ -354,12 +418,53 @@ func createImageInputsContent(parentWin fyne.Window) *ImageInputsParamsPanel {
 		)
 	}
 
-	initImageCard := createUploadCard("Init Image", "Drop, paste, or browse an image to seed\ngeneration.", &imageInputsParams.InitImagePath, 1, parentWin)
-	maskImageCard := createUploadCard("Mask Image", "One-channel mask image.", &imageInputsParams.MaskImagePath, 1, parentWin)
+	initImageCard := createUploadCard("Init Image", "Drop, paste, or browse an image to seed\ngeneration.", func(filePath string) {
+		//imageInputsParams.MaskImageData = nil
+		if len(filePath) > 0 {
+			imageInputsParams.InitImageData = FileToArr(filePath)
+		} else {
+			imageInputsParams.InitImageData = nil
+		}
+
+	}, nil)
+	maskImageCard := createUploadCard("Mask Image", "One-channel mask image.", func(filePath string) {
+		if len(filePath) > 0 {
+			imageInputsParams.MaskImageData = FileToArr(filePath)
+		} else {
+			imageInputsParams.MaskImageData = nil
+		}
+
+	}, func(update_ctrl func([]byte)) {
+		if len(imageInputsParams.InitImageData) > 0 {
+			reader := bytes.NewReader(imageInputsParams.InitImageData)
+			bgImg, _, err := image.Decode(reader)
+			if err != nil {
+				fmt.Print("Error decode InitImageData:", err)
+			} else {
+				var maskData image.Image
+				if len(imageInputsParams.MaskImageData) > 0 {
+					reader := bytes.NewReader(imageInputsParams.MaskImageData)
+					maskData, _, err = image.Decode(reader)
+					if err == nil {
+					}
+				}
+				NewMaskEditor(parentWin, bgImg, maskData, func(mask_data []byte) {
+					imageInputsParams.MaskImageData = mask_data
+					update_ctrl(mask_data)
+				})
+			}
+		}
+	})
 	topRow := container.NewGridWithColumns(2, initImageCard, maskImageCard)
 
-	controlImageCard := createUploadCard("Control Image", "ControlNet-style guidance image.", &imageInputsParams.ControlImagePath, 1, parentWin)
-	refImageCardRaw := createUploadCard("Reference Images", "Multiple reference images supported.", &imageInputsParams.RefImagePathList, 10, parentWin)
+	controlImageCard := createUploadCard("Control Image", "ControlNet-style guidance image.", func(filePath string) {
+		if len(filePath) > 0 {
+			imageInputsParams.ControlImageData = FileToArr(filePath)
+		} else {
+			imageInputsParams.ControlImageData = nil
+		}
+	}, nil)
+	refImageCardRaw := createUploadCardMulti("Multiple reference images supported.", &imageInputsParams.RefImagesList)
 	refStatusExtra := widget.NewLabel("No files selected.")
 	refStatusExtra.Importance = widget.LowImportance
 

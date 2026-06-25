@@ -38,7 +38,8 @@ func main() {
 	currentBatchPage := 0
 	//totalPages := 10
 
-	myApp := app.New()
+	//myApp := app.New()
+	myApp := app.NewWithID("com.my.sd_gui")
 	myWindow := myApp.NewWindow("Stable Diffusion CPP GUI")
 	//myWindow.Resize(fyne.NewSize(1920, 1080))
 	myWindow.Resize(fyne.NewSize(1100, 1000))
@@ -86,7 +87,7 @@ func main() {
 	vaeTilingParams := createVaeTilingContent()
 	cacheParams := createCacheContent()
 	hiResParams := createHiResContent()
-	imageInputsParams := createImageInputsContent(myWindow)
+	imageInputsParams := createImageInputsContent(myApp, myWindow)
 
 	accordion := widget.NewAccordion(
 		widget.NewAccordionItem("SAMPLE", sampleParams.Container),
@@ -101,7 +102,7 @@ func main() {
 	accordion.MultiOpen = true
 
 	leftColumn := container.NewVBox(
-		widget.NewLabel("INPUT"),
+		//widget.NewLabel("INPUT"),
 		widget.NewLabel("Prompt"),
 		promptInput,
 		widget.NewLabel("Negative Prompt"),
@@ -345,15 +346,12 @@ func main() {
 			req.AutoResizeRefImage = true //TODO ???
 			req.RefImages = []string{}
 			if imageInputsParams.EnabledCheck.Checked {
-				req.InitImage = FileToBase64(imageInputsParams.InitImagePath[0])
-				req.MaskImage = FileToBase64(imageInputsParams.MaskImagePath[0])
-				req.ControlImage = FileToBase64(imageInputsParams.ControlImagePath[0])
-				if imageInputsParams.RefImagePathList != nil {
-					for _, filePath := range imageInputsParams.RefImagePathList {
-						lstr := FileToBase64(filePath)
-						if lstr != nil && len(*lstr) > 0 {
-							req.RefImages = append(req.RefImages, *lstr)
-						}
+				req.InitImage = StrEmptyTest(base64.StdEncoding.EncodeToString(imageInputsParams.InitImageData))
+				req.MaskImage = StrEmptyTest(base64.StdEncoding.EncodeToString(imageInputsParams.MaskImageData))
+				req.ControlImage = StrEmptyTest(base64.StdEncoding.EncodeToString(imageInputsParams.ControlImageData))
+				if imageInputsParams.RefImagesList != nil {
+					for _, iitem := range imageInputsParams.RefImagesList {
+						req.RefImages = append(req.RefImages, base64.StdEncoding.EncodeToString(iitem.Data))
 					}
 				}
 			} else {

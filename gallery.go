@@ -351,7 +351,7 @@ func (ab *AdvancedBrowser) initUI() {
 		}
 	})
 
-	renameBtn := widget.NewButtonWithIcon("Name", theme.DocumentCreateIcon(), func() {
+	renameBtn := widget.NewButtonWithIcon("Rename", theme.DocumentCreateIcon(), func() {
 		totalSelected := len(ab.CheckedFolders) + len(ab.CheckedImages)
 		if totalSelected != 1 {
 			dialog.ShowInformation("Attention", "Please select exactly ONE item to rename", ab.Window)

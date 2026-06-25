@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -98,21 +97,21 @@ func parseGuidance(guidance GuidanceConfig, guidanceParams *GuidanceParamsPanel)
 	guidanceParams.SlgLayersInput.SetText(intSliceToString(guidance.Slg.Layers))
 }
 
-func FileToBase64(filePath string) *string {
+func FileToArr(filePath string) []byte {
 	if filePath == "" {
-		//fmt.Println("Error, empty path:", err)
-		return nil // Пустая строка — возвращаем nil
+		return []byte{}
 	}
-	// 1. Читаем байты файла
 	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
 		fmt.Println("Error read file:", err)
-		return nil // Ошибка чтения — возвращаем nil
+		return []byte{}
 	}
+	return fileBytes
+}
 
-	// 2. Кодируем в Base64
-	b64Str := base64.StdEncoding.EncodeToString(fileBytes)
-
-	// 3. Возвращаем указатель на созданную строку
-	return &b64Str
+func StrEmptyTest(str string) *string {
+	if str == "" {
+		return nil
+	}
+	return &str
 }
