@@ -34,7 +34,9 @@ To use this GUI, you must have an active instance of the sd-server (from the sta
 
 ------------------------------
 
-## 💻 Installation & Usage## 1. Clone the repository
+## 💻 Installation & Usage
+
+## 1. Clone the repository
 
 git clone <https://github.com/olegk0/SD_UI.git>
 cd SD_UI
