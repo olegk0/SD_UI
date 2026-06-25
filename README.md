@@ -8,7 +8,7 @@ This project acts as a client frontend that connects directly to a running sd-se
 
 ## 🚀 Features & Current State
 
-## Core Functionality
+### Core Functionality
 
 * txt2img & img2img: Full support for most stable-diffusion.cpp parameters.
 * Inpainting: Full support using init_image, mask_image, and ref_images (control_image not tested).
@@ -16,7 +16,7 @@ This project acts as a client frontend that connects directly to a running sd-se
 * LoRA / LyCORIS: Controls for adding and adjusting model weights directly in the prompt.
 * Upscaling: Built-in parameters for Hi-Res Fix and image upscaling.
 
-## Gallery & Metadata
+### Gallery & Metadata
 
 * File Manager: Simple built-in gallery for viewing generated images.
 * EXIF Reader & Prompt History: Reads generation parameters directly from image metadata to quickly reuse them for new sessions.
@@ -36,20 +36,19 @@ To use this GUI, you must have an active instance of the sd-server (from the sta
 
 ## 💻 Installation & Usage
 
-## 1. Clone the repository
+### 1. Clone the repository
 
 git clone <https://github.com/olegk0/SD_UI.git>
 cd SD_UI
 
-## 2. Install dependencies
+### 2. Install dependencies
 
 go mod tidy
 
 Note: Fyne may require graphics development libraries depending on your OS (e.g., libgl1-mesa-dev on Linux or Xcode CLI tools on macOS).
 
-## 3. Run the application
+### 3. Run the application
 
 go run .
 
 Inside the app, enter your sd-server URL/Port, configure your parameters, and start generating
-------------------------------
